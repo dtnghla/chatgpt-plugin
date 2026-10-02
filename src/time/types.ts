@@ -155,3 +155,12 @@ export interface PlannerGrid {
 export class TimeInputError extends Error {
   override readonly name = "TimeInputError";
 }
+
+/**
+ * structuredContent returned by the render_meeting_planner tool and consumed by the
+ * widget. It is the grid plus the normalised participants, so the widget can call the
+ * tool again (previous/next day) without having to remember the original request.
+ */
+export interface RenderOutput extends PlannerGrid {
+  participants: Participant[];
+}
