@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64">
+  <title>Time Zone Planner</title>
+  <circle cx="24" cy="32" r="16" fill="none" stroke="#000000" stroke-width="4"/>
+  <circle cx="40" cy="32" r="16" fill="none" stroke="#000000" stroke-width="4"/>
+  <path d="M32 18.14A16 16 0 0 1 32 45.86A16 16 0 0 1 32 18.14Z" fill="#000000"/>
+</svg>

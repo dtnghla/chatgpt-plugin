@@ -1,0 +1,20 @@
+{
+  "name": "chatgpt-plugin-local",
+  "interface": {
+    "displayName": "Time Zone Planner (local)"
+  },
+  "plugins": [
+    {
+      "name": "time-zone-planner",
+      "source": {
+        "source": "local",
+        "path": "./plugins/time-zone-planner"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}
