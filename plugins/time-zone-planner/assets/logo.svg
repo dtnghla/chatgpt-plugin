@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <title>Time Zone Planner</title>
+  <rect width="128" height="128" rx="28" fill="#2563EB"/>
+  <circle cx="48" cy="64" r="30" fill="#FFFFFF" fill-opacity="0.9"/>
+  <circle cx="80" cy="64" r="30" fill="#FFFFFF" fill-opacity="0.9"/>
+  <path d="M64 38.62A30 30 0 0 1 64 89.38A30 30 0 0 1 64 38.62Z" fill="#1E3A8A"/>
+  <path d="M64 50V64L72 70" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>

@@ -1,0 +1,12 @@
+interface:
+  display_name: "Plan a meeting"
+  short_description: "Find meeting times across time zones"
+  default_prompt: "Find a time that works for people in New York, Berlin and Singapore."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "time-zone-planner"
+      description: "Convert time zones and find meeting times"
+      transport: "streamable_http"
+      url: "http://localhost:3000/mcp"

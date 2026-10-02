@@ -1,0 +1,37 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "time-zone-planner",
+  "version": "1.0.0",
+  "description": "Converts times between IANA time zones with correct daylight-saving handling, finds meeting times inside everyone's working hours, and shows an hour-by-hour overlap grid.",
+  "author": {
+    "name": "dtnghla"
+  },
+  "repository": "https://github.com/dtnghla/chatgpt-plugin",
+  "license": "MIT",
+  "keywords": ["time zones", "meetings", "scheduling", "daylight saving", "working hours"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Time Zone Planner",
+        "shortDescription": "Meet across time zones",
+        "longDescription": "Time Zone Planner helps you schedule across time zones. It converts a time between IANA time zones using the real daylight-saving rules for the date you ask about, so you do not have to work out offsets by hand.\n\nGive it the people involved and where they are, and it looks for slots that fall inside everyone's working hours. It can also show an hour-by-hour grid of the day so you can see where schedules overlap and where they do not.\n\nIt does not connect to calendars, send invitations, or store anything. Each request is calculated from the details you provide.\n\nWhat it can do:\n- Convert a time between time zones, including daylight-saving gaps and overlaps\n- Find meeting times inside everyone's working hours\n- Show an hour-by-hour overlap grid for a chosen day\n- Flag when a time lands on a different day or weekday for someone",
+        "developerName": "dtnghla",
+        "category": "Productivity",
+        "capabilities": [
+          "Convert a time between time zones",
+          "Find meeting times inside everyone's working hours",
+          "Show an hour-by-hour overlap grid"
+        ],
+        "defaultPrompt": [
+          "When is 9am in New York for my team in London and Tokyo?",
+          "Find a 45-minute slot for New York, Berlin and Singapore next week.",
+          "Show the working-hours overlap for Lisbon, Cairo and Mumbai on Monday."
+        ],
+        "brandColor": "#2563EB",
+        "brandColorDark": "#60A5FA",
+        "composerIcon": "./assets/composer-icon.svg",
+        "logo": "./assets/logo.svg"
+      }
+    }
+  }
+}
