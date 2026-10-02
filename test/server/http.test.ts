@@ -104,16 +104,39 @@ describe("HTTP surface", () => {
 });
 
 describe("built widget bundle", () => {
-  it("is a single HTML file with no external URLs", async () => {
+  const INERT_LIBRARY_URLS = [
+    /^https?:\/\/www\.w3\.org\//,
+    /^https?:\/\/json-schema\.org\//,
+    /^https:\/\/github\.com\/cfworker$/,
+    /^https:\/\/\*\.example\.com/,
+    /^http:\/\/\[\$\{/,
+  ];
+
+  it("is a single HTML file that loads nothing external", async () => {
     const html = await readFile(
       new URL("../../dist/web/planner.html", import.meta.url),
       "utf8",
     ).catch(() => undefined);
     expect(html, 'run "npm run build:web" before the tests').toBeDefined();
     const urls = (html ?? "").match(/https?:\/\/[^\s"'<>)\\]+/g) ?? [];
-    const external = urls.filter((url) => !/^https?:\/\/www\.w3\.org\//.test(url));
-    expect(external).toEqual([]);
+    const unexpected = urls.filter(
+      (url) => !INERT_LIBRARY_URLS.some((pattern) => pattern.test(url)),
+    );
+    expect(unexpected).toEqual([]);
     expect(html).not.toMatch(/<script[^>]+src=/);
     expect(html).not.toMatch(/<link[^>]+href=/);
+    expect(html).not.toMatch(/<img[^>]+src=["']https?:/);
+  });
+
+  it("has widget source that makes no network calls of its own", async () => {
+    const sources = await Promise.all(
+      ["planner.ts", "model.ts"].map((file) =>
+        readFile(new URL(`../../web/src/${file}`, import.meta.url), "utf8"),
+      ),
+    );
+    for (const source of sources) {
+      expect(source).not.toMatch(/\b(fetch|XMLHttpRequest|WebSocket|EventSource|sendBeacon)\b/);
+      expect(source).not.toMatch(/innerHTML|outerHTML|insertAdjacentHTML|document\.write/);
+    }
   });
 });
