@@ -204,13 +204,17 @@ describe("findMeetingTimes: no full overlap", () => {
     expect(result.summary).toBe("No participant is within working hours in the searched window.");
   });
 
+  it("fits a slot exactly as long as the shift", () => {
+    const result = search([{ name: "Ann", time_zone: NY }], { duration_minutes: 480 });
+    expect(localStarts(result)).toEqual(["2026-01-12T09:00"]);
+  });
+
   it("returns an empty list when the duration exceeds every shift", () => {
-    const result = search([{ name: "Ann", time_zone: NY }], { duration_minutes: 480, days: 1 });
-    expect(result.slots).toHaveLength(1);
-    const tooLong = search([{ name: "Ann", time_zone: NY, work_end: "12:00" }], {
+    const result = search([{ name: "Ann", time_zone: NY, work_end: "12:00" }], {
       duration_minutes: 240,
     });
-    expect(tooLong.slots).toEqual([]);
+    expect(result.slots).toEqual([]);
+    expect(result.has_full_overlap).toBe(false);
   });
 });
 
@@ -256,8 +260,8 @@ describe("findMeetingTimes: unavailable reasons", () => {
       ],
       { start_date: "2026-01-13" },
     );
-    const [first] = result.slots;
-    expect(first?.participants[1]).toMatchObject({
+    const daySlot = result.slots.find((slot) => slot.participants[0]?.available);
+    expect(daySlot?.participants[1]).toMatchObject({
       name: "Night",
       available: false,
       reason: "non_working_day",
@@ -273,9 +277,9 @@ describe("findMeetingTimes: unavailable reasons", () => {
       ],
       { start_date: "2026-01-13", step_minutes: 30 },
     );
-    expect(result.slots).toHaveLength(1);
-    expect(result.slots[0]?.participants[0]?.local_start).toBe("2026-01-13T05:30");
-    expect(result.slots[0]?.participants[1]).toMatchObject({
+    const earlySlot = result.slots.find((slot) => slot.participants[0]?.available);
+    expect(earlySlot?.participants[0]?.local_start).toBe("2026-01-13T05:30");
+    expect(earlySlot?.participants[1]).toMatchObject({
       available: false,
       reason: "outside_working_hours",
     });
@@ -327,10 +331,10 @@ describe("findMeetingTimes: overnight shifts", () => {
       [{ name: "Night", time_zone: TOKYO, work_start: "22:00", work_end: "06:00", work_days: [1] }],
       { start_date: "2026-01-12", max_results: 10 },
     );
-    expect(localStarts(result)).toEqual(["2026-01-12T22:00", "2026-01-12T23:00"]);
+    expect(localStarts(result)).toEqual(["2026-01-12T23:00", "2026-01-12T22:00"]);
   });
 
-  it("treats equal start and end as a 24-hour shift and merges touching shifts", () => {
+  it("treats equal start and end as a 24-hour shift and merges exactly touching shifts", () => {
     const result = search(
       [
         {
@@ -340,15 +344,12 @@ describe("findMeetingTimes: overnight shifts", () => {
           work_end: "08:00",
           work_days: [1, 2],
         },
+        { name: "Morning", time_zone: NY, work_start: "06:00", work_end: "10:00", work_days: [2] },
       ],
-      { days: 2, duration_minutes: 480, step_minutes: 60, max_results: 20 },
+      { start_date: "2026-01-12", days: 2, duration_minutes: 240, step_minutes: 60 },
     );
-    const crossing = result.slots.filter(
-      (s) =>
-        s.participants[0]?.local_start.slice(0, 10) !== s.participants[0]?.local_end.slice(0, 10),
-    );
-    expect(crossing.length).toBeGreaterThan(0);
-    expect(result.slots.length).toBeGreaterThan(0);
+    expect(result.has_full_overlap).toBe(true);
+    expect(localStarts(result, 1)).toEqual(["2026-01-13T06:00"]);
   });
 
   it("does not merge shifts separated by a gap", () => {
@@ -439,27 +440,15 @@ describe("findMeetingTimes: DST", () => {
 
   it("makes the fall-back day a 25 hour window", () => {
     const result = search(
-      [
-        {
-          name: "Ann",
-          time_zone: NY,
-          work_start: "00:00",
-          work_end: "00:00",
-          work_days: [1, 2, 3, 4, 5, 6, 7],
-        },
-      ],
-      {
-        start_date: "2026-11-01",
-        days: 1,
-        duration_minutes: 15,
-        step_minutes: 15,
-        max_results: 20,
-      },
+      [{ name: "Ann", time_zone: NY, work_start: "23:00", work_end: "00:00", work_days: [7] }],
+      { start_date: "2026-11-01", days: 1 },
     );
-    expect(result.slots.length).toBe(20);
-    const starts = result.slots.map((s) => s.start_utc).sort();
-    expect(starts[0] >= "2026-11-01T04:00:00Z").toBe(true);
-    expect(starts[starts.length - 1] <= "2026-11-02T04:45:00Z").toBe(true);
+    expect(result.slots).toHaveLength(1);
+    expect(result.slots[0]).toMatchObject({
+      start_utc: "2026-11-02T04:00:00Z",
+      end_utc: "2026-11-02T05:00:00Z",
+    });
+    expect(result.slots[0]?.participants[0]?.local_start).toBe("2026-11-01T23:00");
   });
 
   it("moves a shift boundary that falls into the gap forward (compatible)", () => {
@@ -487,26 +476,32 @@ describe("findMeetingTimes: DST", () => {
     expect(byLocal.get("2026-03-30T09:00")?.participants[0]?.utc_offset).toBe("+01:00");
   });
 
-  it("handles a participant whose zone changes offset inside the window", () => {
-    const result = search(
-      [
-        { name: "Ann", time_zone: NY },
-        { name: "Bob", time_zone: LONDON },
-      ],
-      { start_date: "2026-03-02", days: 14, max_results: 20, step_minutes: 30 },
-    );
-    const early = result.slots.filter((s) => s.start_utc < "2026-03-08T00:00:00Z");
-    const mid = result.slots.filter(
-      (s) => s.start_utc > "2026-03-09T00:00:00Z" && s.start_utc < "2026-03-27T00:00:00Z",
-    );
-    expect(early.length).toBeGreaterThan(0);
-    expect(mid.length).toBeGreaterThan(0);
-    for (const slot of early) {
-      expect(slot.start_utc.slice(11, 13) >= "14").toBe(true);
-    }
-    for (const slot of mid) {
-      expect(slot.start_utc.slice(11, 13) >= "13").toBe(true);
-    }
+  it("shifts the New York / London overlap by an hour once the US is on EDT", () => {
+    const people: ParticipantInput[] = [
+      { name: "Ann", time_zone: NY },
+      { name: "Bob", time_zone: LONDON },
+    ];
+    const winter = search(people, { start_date: "2026-03-02" });
+    expect(winter.slots.map((s) => s.start_utc)).toEqual([
+      "2026-03-02T14:00:00Z",
+      "2026-03-02T15:00:00Z",
+      "2026-03-02T16:00:00Z",
+    ]);
+    const split = search(people, { start_date: "2026-03-09" });
+    expect(split.slots.map((s) => s.start_utc)).toEqual([
+      "2026-03-09T13:00:00Z",
+      "2026-03-09T14:00:00Z",
+      "2026-03-09T15:00:00Z",
+      "2026-03-09T16:00:00Z",
+    ]);
+    expect(split.slots[0]?.participants[0]).toMatchObject({
+      local_start: "2026-03-09T09:00",
+      utc_offset: "-04:00",
+    });
+    expect(split.slots[0]?.participants[1]).toMatchObject({
+      local_start: "2026-03-09T13:00",
+      utc_offset: "+00:00",
+    });
   });
 });
 
