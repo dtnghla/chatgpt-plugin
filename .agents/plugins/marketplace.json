@@ -1,0 +1,20 @@
+{
+  "name": "chatgpt-plugin-local",
+  "interface": {
+    "displayName": "Pentaho to AWS (local)"
+  },
+  "plugins": [
+    {
+      "name": "pentaho-to-aws",
+      "source": {
+        "source": "local",
+        "path": "./plugins/pentaho-to-aws"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Data & Analytics"
+    }
+  ]
+}

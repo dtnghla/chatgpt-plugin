@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<transformation>
+  <info>
+    <name>orders</name>
+    <description>Aggregate orders per country and write the extract to S3.</description>
+    <directory>/transforms</directory>
+  </info>
+  <connection>
+    <name>warehouse</name>
+    <server>${DB_HOST}</server>
+    <type>POSTGRESQL</type>
+    <access>Native</access>
+    <database>retail</database>
+    <port>5432</port>
+    <username>etl</username>
+    <password>Encrypted 2be98afc86aa7f2e4cb1aa265cd7b1e73</password>
+  </connection>
+  <order>
+    <hop>
+      <from>Read orders</from>
+      <to>Aggregate by country</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Aggregate by country</from>
+      <to>Order columns</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Order columns</from>
+      <to>Write extract</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <step>
+    <name>Read orders</name>
+    <type>TableInput</type>
+    <connection>warehouse</connection>
+    <sql>SELECT country, order_id, amount FROM fact_orders WHERE order_date &gt;= '${RUN_DATE}'</sql>
+  </step>
+  <step>
+    <name>Aggregate by country</name>
+    <type>GroupBy</type>
+    <group>
+      <field>
+        <name>country</name>
+      </field>
+    </group>
+    <fields>
+      <field>
+        <name>order_count</name>
+        <subject>order_id</subject>
+        <type>COUNT</type>
+      </field>
+      <field>
+        <name>total_amount</name>
+        <subject>amount</subject>
+        <type>SUM</type>
+      </field>
+    </fields>
+  </step>
+  <step>
+    <name>Order columns</name>
+    <type>SelectValues</type>
+    <fields>
+      <field>
+        <name>country</name>
+      </field>
+      <field>
+        <name>order_count</name>
+      </field>
+      <field>
+        <name>total_amount</name>
+      </field>
+    </fields>
+  </step>
+  <step>
+    <name>Write extract</name>
+    <type>TextFileOutput</type>
+    <file>
+      <name>/opt/retail/data/orders_summary.csv</name>
+    </file>
+    <separator>,</separator>
+    <header>Y</header>
+    <enclosure>"</enclosure>
+  </step>
+</transformation>

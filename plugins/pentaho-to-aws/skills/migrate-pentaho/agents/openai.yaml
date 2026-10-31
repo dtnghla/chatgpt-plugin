@@ -1,0 +1,12 @@
+interface:
+  display_name: "Migrate Pentaho to AWS"
+  short_description: "Assess PDI, generate AWS code"
+  default_prompt: "Assess my Pentaho .ktr and .kjb files and generate an AWS migration bundle."
+
+dependencies:
+  tools:
+    - type: "mcp"
+      value: "pentaho-to-aws"
+      description: "Assess Pentaho projects and generate Glue, Step Functions and CloudFormation artifacts"
+      transport: "streamable_http"
+      url: "http://localhost:3000/mcp"

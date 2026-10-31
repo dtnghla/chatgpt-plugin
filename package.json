@@ -1,0 +1,62 @@
+{
+  "name": "pentaho-to-aws",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Pentaho to AWS: a ChatGPT/Codex plugin that assesses Pentaho Data Integration jobs and transformations and generates a deployable AWS migration bundle.",
+  "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/dtnghla/chatgpt-plugin.git"
+  },
+  "engines": {
+    "node": ">=22.12"
+  },
+  "scripts": {
+    "build": "npm run build:web && npm run build:server",
+    "build:web": "vite build --config web/vite.config.ts",
+    "build:server": "tsc -p tsconfig.build.json",
+    "start": "node dist/src/main.js",
+    "dev": "npm run build:web && tsx watch src/main.ts",
+    "typecheck": "tsc --noEmit",
+    "lint": "biome check .",
+    "format": "biome check --write .",
+    "test": "vitest run",
+    "test:update": "vitest run -u",
+    "validate:plugin": "tsx scripts/validate-plugin.ts",
+    "validate:plugin:release": "tsx scripts/validate-plugin.ts --release",
+    "plugin:set-url": "tsx scripts/set-server-url.ts",
+    "check:generated": "tsx scripts/check-generated.ts",
+    "smoke:pdi": "tsx scripts/pdi-samples-smoke.ts",
+    "inspect": "npx @modelcontextprotocol/inspector",
+    "check": "npm run lint && npm run typecheck && npm run build && npm test && npm run validate:plugin"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/client": "2.2.0",
+    "@modelcontextprotocol/core": "2.2.0",
+    "@modelcontextprotocol/express": "2.0.1",
+    "@modelcontextprotocol/ext-apps": "2.0.3",
+    "@modelcontextprotocol/node": "2.1.0",
+    "@modelcontextprotocol/server": "2.2.0",
+    "express": "5.2.1",
+    "fast-xml-parser": "5.11.2",
+    "fflate": "0.8.3",
+    "yaml": "2.9.1",
+    "zod": "4.6.5"
+  },
+  "optionalDependencies": {
+    "@aws-sdk/client-s3": "3.1161.0",
+    "@aws-sdk/s3-request-presigner": "3.1161.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15",
+    "@types/express": "5.0.6",
+    "@types/node": "22.20.5",
+    "ajv": "8.20.0",
+    "tsx": "4.23.15",
+    "typescript": "5.9.3",
+    "vite": "7.3.6",
+    "vite-plugin-singlefile": "2.3.3",
+    "vitest": "5.0.3"
+  }
+}

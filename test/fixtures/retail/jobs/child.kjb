@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<job>
+  <name>child</name>
+  <description>Post-load bookkeeping job.</description>
+  <entries>
+    <entry>
+      <name>Start</name>
+      <type>SPECIAL</type>
+      <start>Y</start>
+      <dummy>N</dummy>
+    </entry>
+    <entry>
+      <name>Set audit variables</name>
+      <type>SET_VARIABLES</type>
+      <fields>
+        <field>
+          <variable_name>AUDIT_SOURCE</variable_name>
+          <variable_value>nightly_load</variable_value>
+        </field>
+        <field>
+          <variable_name>LOAD_OK</variable_name>
+          <variable_value>Y</variable_value>
+        </field>
+      </fields>
+    </entry>
+    <entry>
+      <name>Wait for writers</name>
+      <type>WAIT</type>
+      <maximumTimeout>5</maximumTimeout>
+      <intervalSeconds>2</intervalSeconds>
+    </entry>
+    <entry>
+      <name>Log completion</name>
+      <type>WRITE_TO_LOG</type>
+      <logmessage>Child job finished its bookkeeping.</logmessage>
+    </entry>
+    <entry>
+      <name>Check load flag</name>
+      <type>EVAL</type>
+      <fieldname>LOAD_OK</fieldname>
+      <valuetype>String</valuetype>
+      <successvalue>Y</successvalue>
+    </entry>
+    <entry>
+      <name>Success</name>
+      <type>SPECIAL</type>
+      <success>Y</success>
+      <dummy>N</dummy>
+    </entry>
+    <entry>
+      <name>Failure</name>
+      <type>SPECIAL</type>
+      <failure>Y</failure>
+      <dummy>N</dummy>
+    </entry>
+  </entries>
+  <hops>
+    <hop>
+      <from>Start</from>
+      <to>Set audit variables</to>
+      <enabled>Y</enabled>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Set audit variables</from>
+      <to>Wait for writers</to>
+      <enabled>Y</enabled>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Wait for writers</from>
+      <to>Log completion</to>
+      <enabled>Y</enabled>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Log completion</from>
+      <to>Check load flag</to>
+      <enabled>Y</enabled>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Check load flag</from>
+      <to>Success</to>
+      <enabled>Y</enabled>
+      <evaluation>Y</evaluation>
+    </hop>
+    <hop>
+      <from>Check load flag</from>
+      <to>Failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+    </hop>
+    <hop>
+      <from>Wait for writers</from>
+      <to>Failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+    </hop>
+  </hops>
+</job>

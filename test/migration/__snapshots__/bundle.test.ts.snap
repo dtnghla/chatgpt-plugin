@@ -1,0 +1,18 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildMigrationBundle > produces the expected deterministic bundle layout > bundle-files 1`] = `
+[
+  "README.md",
+  "cloudformation/pentaho-migration.yaml",
+  "glue/scripts/retail-customers.py",
+  "glue/scripts/retail-exports.py",
+  "glue/scripts/retail-orders.py",
+  "glue/scripts/retail-repo-dim.py",
+  "glue/scripts/retail-sql-runner.py",
+  "manifest.json",
+  "migration-report.md",
+  "stepfunctions/retail-child.json",
+  "stepfunctions/retail-nightly-load.json",
+  "stepfunctions/retail-repo-job.json",
+]
+`;

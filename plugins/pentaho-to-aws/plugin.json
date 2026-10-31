@@ -1,0 +1,42 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "pentaho-to-aws",
+  "version": "1.0.0",
+  "description": "Assesses Pentaho Data Integration jobs and transformations, maps every step, and generates a deployable AWS Glue, Step Functions and CloudFormation migration bundle.",
+  "author": {
+    "name": "dtnghla"
+  },
+  "repository": "https://github.com/dtnghla/chatgpt-plugin",
+  "license": "MIT",
+  "keywords": ["pentaho", "pdi", "aws", "migration", "glue", "step functions", "cloudformation"],
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "Pentaho to AWS",
+        "shortDescription": "Assess PDI, generate AWS code",
+        "longDescription": "Pentaho to AWS assesses Pentaho Data Integration projects and turns them into deployable AWS artifacts. Upload .ktr transformations, .kjb jobs, kettle.properties or a project ZIP and it maps each step to AWS Glue PySpark or marks it for manual work, scores migration readiness and lists placeholder connections and open questions.\n\nWhen you ask for the migration, it generates Glue 6.0 PySpark scripts, Step Functions state machines with JSONata, EventBridge Scheduler schedules, Glue JDBC connections with placeholder Secrets Manager secrets, a migration report and one CloudFormation template, packaged as a deterministic ZIP.\n\nIt is read-only. It never connects to AWS or your databases, never asks for AWS credentials or passwords, and strips passwords found in the uploaded project. You deploy the generated bundle yourself with the AWS CLI.\n\nWhat it can do:\n- Assess transformations, jobs, connections, parameters and schedules\n- Generate Glue jobs, state machines, schedules and a CloudFormation template\n- List manual steps, placeholder secrets and deployment commands",
+        "developerName": "dtnghla",
+        "category": "Data & Analytics",
+        "websiteURL": "https://github.com/dtnghla/chatgpt-plugin",
+        "privacyPolicyURL": "https://github.com/dtnghla/chatgpt-plugin/blob/main/PRIVACY.md",
+        "termsOfServiceURL": "https://github.com/dtnghla/chatgpt-plugin/blob/main/TERMS.md",
+        "supportURL": "https://github.com/dtnghla/chatgpt-plugin/issues",
+        "capabilities": [
+          "Assess Pentaho transformations, jobs and connections",
+          "Map PDI steps to AWS Glue PySpark",
+          "Generate Step Functions, schedules and CloudFormation",
+          "List manual steps and placeholder secrets"
+        ],
+        "defaultPrompt": [
+          "Assess these Pentaho .ktr and .kjb files and tell me what needs manual work before moving to AWS.",
+          "Generate the Glue, Step Functions and CloudFormation bundle for this Pentaho project.",
+          "Which steps cannot be converted automatically, and which secrets must I fill after deploying?"
+        ],
+        "brandColor": "#0F766E",
+        "brandColorDark": "#5EEAD4",
+        "composerIcon": "./assets/composer-icon.svg",
+        "logo": "./assets/logo.svg"
+      }
+    }
+  }
+}

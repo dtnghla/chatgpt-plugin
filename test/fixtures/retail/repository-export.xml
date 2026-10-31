@@ -1,0 +1,101 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<repository>
+  <transformations>
+    <transformation>
+      <info>
+        <name>repo_dim</name>
+        <description>Dimension fixture stored in the Pentaho repository.</description>
+        <directory>/public/dimensions</directory>
+      </info>
+      <connection>
+        <name>landing</name>
+        <server>s3.amazonaws.com</server>
+        <type>GENERIC</type>
+        <database>retail-landing</database>
+      </connection>
+      <step>
+        <name>Generate keys</name>
+        <type>RowGenerator</type>
+        <row_limit>10</row_limit>
+        <fields>
+          <field>
+            <name>dimension_key</name>
+            <type>Integer</type>
+            <value>1</value>
+          </field>
+          <field>
+            <name>dimension_name</name>
+            <type>String</type>
+            <value>repo_dim</value>
+          </field>
+        </fields>
+      </step>
+      <step>
+        <name>Tag source</name>
+        <type>AddConstants</type>
+        <fields>
+          <field>
+            <name>source_system</name>
+            <type>String</type>
+            <value>pentaho-repository</value>
+          </field>
+        </fields>
+      </step>
+      <step>
+        <name>Finish</name>
+        <type>Dummy</type>
+      </step>
+      <order>
+        <hop>
+          <from>Generate keys</from>
+          <to>Tag source</to>
+          <enabled>Y</enabled>
+        </hop>
+        <hop>
+          <from>Tag source</from>
+          <to>Finish</to>
+          <enabled>Y</enabled>
+        </hop>
+      </order>
+    </transformation>
+  </transformations>
+  <jobs>
+    <job>
+      <name>repo_job</name>
+      <description>Repository fixture job.</description>
+      <entries>
+        <entry>
+          <name>Start</name>
+          <type>SPECIAL</type>
+          <start>Y</start>
+          <dummy>N</dummy>
+        </entry>
+        <entry>
+          <name>Build dimension</name>
+          <type>TRANS</type>
+          <transname>repo_dim</transname>
+        </entry>
+        <entry>
+          <name>Success</name>
+          <type>SPECIAL</type>
+          <success>Y</success>
+          <dummy>N</dummy>
+        </entry>
+      </entries>
+      <hops>
+        <hop>
+          <from>Start</from>
+          <to>Build dimension</to>
+          <enabled>Y</enabled>
+          <unconditional>Y</unconditional>
+        </hop>
+        <hop>
+          <from>Build dimension</from>
+          <to>Success</to>
+          <enabled>Y</enabled>
+          <unconditional>Y</unconditional>
+        </hop>
+      </hops>
+    </job>
+  </jobs>
+</repository>

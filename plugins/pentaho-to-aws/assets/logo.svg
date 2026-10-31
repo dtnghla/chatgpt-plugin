@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <title>Pentaho to AWS</title>
+  <rect width="128" height="128" rx="28" fill="#0F766E"/>
+  <path d="M34 44h16M34 64h16M34 84h16" fill="none" stroke="#CCFBF1" stroke-width="5" stroke-linecap="round"/>
+  <circle cx="34" cy="44" r="7" fill="#FFFFFF"/>
+  <circle cx="34" cy="64" r="7" fill="#FFFFFF"/>
+  <circle cx="34" cy="84" r="7" fill="#FFFFFF"/>
+  <path d="M58 50h12M58 78h12" fill="none" stroke="#CCFBF1" stroke-width="5" stroke-linecap="round"/>
+  <rect x="58" y="42" width="16" height="16" rx="4" fill="#FFFFFF"/>
+  <rect x="58" y="70" width="16" height="16" rx="4" fill="#FFFFFF"/>
+  <path d="M84 78a12 12 0 0 1 2-23.8A15 15 0 0 1 114 60a10 10 0 0 1-2 18z" fill="#FFFFFF"/>
+  <path d="M94 69l6 6 12-12" fill="none" stroke="#0F766E" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
