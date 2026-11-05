@@ -1,0 +1,45 @@
+# Fly.io deployment for the hosted MCP endpoint. See docs/launch.md.
+#
+# Setup:
+#   fly launch --no-deploy          # create the app (pick your own name; update app + ALLOWED_HOSTS)
+#   fly secrets set ARTIFACT_SIGNING_SECRET=$(openssl rand -hex 32)
+#   fly certs add <your-domain>     # optional custom domain; *.fly.dev TLS is automatic
+#   fly deploy
+#
+# The app keeps bundles in memory, so it must run as ONE always-on machine:
+# auto_stop_machines=false and min_machines_running=1 below are load-bearing.
+# Set ARTIFACT_STORE=s3 + ARTIFACT_BUCKET via fly secrets before scaling out.
+
+app = "pentaho-to-aws"
+primary_region = "sin"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  HOST = "0.0.0.0"
+  PORT = "3000"
+  # Must list the public hostname(s) exactly; the server refuses to start
+  # on a public bind without it. Update when you rename the app or add a domain.
+  ALLOWED_HOSTS = "pentaho-to-aws.fly.dev"
+  # Set after the hostname is final, e.g. PUBLIC_BASE_URL=https://pentaho-to-aws.fly.dev
+  # (fly secrets set PUBLIC_BASE_URL=...), so generated ZIP links use it.
+
+[http_service]
+  internal_port = 3000
+  force_https = true
+  auto_stop_machines = false
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "10s"
+    method = "GET"
+    path = "/healthz"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

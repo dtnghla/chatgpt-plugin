@@ -11,7 +11,17 @@ The first real users therefore look like: a data engineer googling "pentaho to a
 ## Phase 0 — make the repo submittable (half a day, all local)
 
 1. **Commit and push.** The monetization layer and launch assets are currently uncommitted on `cursor/pentaho-aws-migrator-1d84`. Merge to `main` so the CI badge is green and GitHub renders the finished README.
-2. **Deploy one public HTTPS MCP endpoint.** Required for the OpenAI directory and for hosted trial by non-technical users. Smallest path: any small VM or Fly.io/Railway container running the Docker image with `HOST=0.0.0.0`, `ALLOWED_HOSTS=<your-domain>`, `PUBLIC_BASE_URL=https://<your-domain>`, a stable `ARTIFACT_SIGNING_SECRET`, TLS in front. Leave `LICENSE_MODE=off` at launch — the free hosted tier is the growth engine; flip on monetization later per [monetization.md](monetization.md).
+2. **Deploy one public HTTPS MCP endpoint.** Required for the OpenAI directory and for hosted trial by non-technical users. The researched winner (Nov 2026) is **Fly.io** in Singapore (~$3.69/mo, 512 MB, `shared-cpu-1x`): it deploys the existing Docker image, imposes no proxy request timeout on SSE streams, includes free TLS, and can pin one always-on machine. Note Fly's default auto-stop pauses idle machines — the committed [fly.toml](../fly.toml) sets `auto_stop_machines = false` and `min_machines_running = 1` to protect the in-memory artifact store. Zero-cost fallback with no card required: **Northflank Developer Sandbox** (always-on, 2 services). Disqualified for this app: AWS App Runner (120 s request timeout kills MCP SSE), DigitalOcean App Platform (proxy buffers SSE), Render/Koyeb free tiers (sleep → state loss), Oracle Always Free (idle reclamation), Zeabur (shutting down 2026-12-31). Setup:
+
+   ```bash
+   fly launch --no-deploy                      # create the app; update app name + ALLOWED_HOSTS in fly.toml
+   fly secrets set ARTIFACT_SIGNING_SECRET=$(openssl rand -hex 32)
+   fly secrets set PUBLIC_BASE_URL=https://pentaho-to-aws.fly.dev ALLOWED_HOSTS=pentaho-to-aws.fly.dev
+   fly deploy
+   curl -fsS https://pentaho-to-aws.fly.dev/healthz
+   ```
+
+   Leave `LICENSE_MODE=off` at launch — the free hosted tier is the growth engine; flip on monetization later per [monetization.md](monetization.md).
 3. **Smoke-test the public endpoint** with `samples/retail` end to end (analyze → generate → download ZIP).
 
 ## Phase 1 — the OpenAI Plugins Directory (the big shelf)
