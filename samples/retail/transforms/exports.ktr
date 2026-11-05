@@ -1,0 +1,69 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<transformation>
+  <info>
+    <name>exports</name>
+    <description>Copy the sales workbook into the reporting area.</description>
+    <directory>/transforms</directory>
+    <parameters>
+      <parameter>
+        <name>REPORT_DATE</name>
+        <default_value>2026-01-31</default_value>
+      </parameter>
+    </parameters>
+  </info>
+  <order>
+    <hop>
+      <from>Read workbook</from>
+      <to>Rename report columns</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Rename report columns</from>
+      <to>Write workbook</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <step>
+    <name>Read workbook</name>
+    <type>ExcelInput</type>
+    <file>
+      <name>${Internal.Transformation.Filename.Directory}/../reports/sales_${REPORT_DATE}.xlsx</name>
+    </file>
+    <sheets>
+      <sheet>
+        <name>Sales</name>
+      </sheet>
+    </sheets>
+    <fields>
+      <field>
+        <name>region</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>revenue</name>
+        <type>Number</type>
+      </field>
+    </fields>
+  </step>
+  <step>
+    <name>Rename report columns</name>
+    <type>SelectValues</type>
+    <fields>
+      <meta>
+        <name>region</name>
+        <rename>sales_region</rename>
+        <type>String</type>
+      </meta>
+    </fields>
+  </step>
+  <step>
+    <name>Write workbook</name>
+    <type>ExcelOutput</type>
+    <file>
+      <name>/opt/retail/reports/sales_${REPORT_DATE}_published.xlsx</name>
+    </file>
+    <sheet>
+      <name>Sales</name>
+    </sheet>
+  </step>
+</transformation>

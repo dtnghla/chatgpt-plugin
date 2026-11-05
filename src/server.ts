@@ -11,10 +11,19 @@ import {
 } from "@modelcontextprotocol/server";
 import type { ArtifactService } from "./artifacts/store.js";
 import { IngestError, readProjectInput } from "./ingest/index.js";
+import {
+  type LicensingContext,
+  projectLimitMessage,
+  quotaMessage,
+  type ResolvedEntitlement,
+  resolveEntitlement,
+} from "./licensing/entitlements.js";
+import type { VerifiedLicense } from "./licensing/license.js";
 import { assessProject, deriveProjectName } from "./migration/assessment.js";
 import { buildMigrationBundle, summarizeBundle } from "./migration/bundle.js";
 import type { MigrationFileResult } from "./migration/types.js";
 import { parsePentahoProject } from "./pentaho/parse.js";
+import type { PentahoProject } from "./pentaho/types.js";
 import { formatAssessment, formatBundleSummary, formatMigrationFile } from "./tools/format.js";
 import {
   analyzeInputSchema,
@@ -41,6 +50,9 @@ const INSTRUCTIONS = [
   "Use get_migration_file to quote or inspect generated text files. The returned bundle expires; regenerate it if the download or file lookup has expired.",
 ].join(" ");
 
+const LICENSE_INSTRUCTIONS =
+  "This deployment enforces free-tier limits. If a tool result says the free tier limit was exceeded or a license key is invalid, relay that message to the user. A purchased Pro license key can be passed through the license_key argument of analyze_pentaho_project and generate_aws_migration.";
+
 const READ_ONLY: ToolAnnotations = {
   readOnlyHint: true,
   destructiveHint: false,
@@ -53,6 +65,10 @@ export interface ServerDeps {
   artifacts: ArtifactService;
   fileHostAllowlist: string[];
   widgetDomain?: string;
+  /** Present when LICENSE_MODE=enforced; enables free-tier gates and bundle quotas. */
+  licensing?: LicensingContext;
+  /** License verified from the connection's x-pentaho-license-key header, if any. */
+  headerLicense?: VerifiedLicense;
 }
 
 function failure(message: string): CallToolResult {
@@ -64,10 +80,38 @@ function toolError(error: unknown): CallToolResult {
   throw error;
 }
 
+function projectUsage(project: PentahoProject): { files: number; steps: number } {
+  return {
+    files: project.files.length,
+    steps:
+      project.transformations.reduce(
+        (sum, transformation) => sum + transformation.steps.length,
+        0,
+      ) + project.jobs.reduce((sum, job) => sum + job.entries.length, 0),
+  };
+}
+
+/** Reject a free-tier call before the expensive work when the project is too large. */
+function freeTierGate(
+  deps: ServerDeps,
+  entitlement: ResolvedEntitlement,
+  project: PentahoProject,
+): CallToolResult | undefined {
+  if (entitlement.tier !== "free" || !deps.licensing) return undefined;
+  const { files, steps } = projectUsage(project);
+  const { maxFiles, maxSteps } = deps.licensing.settings.free;
+  if (files <= maxFiles && steps <= maxSteps) return undefined;
+  return failure(projectLimitMessage(deps.licensing.settings, files, steps));
+}
+
 export function createServer(deps: ServerDeps): McpServer {
   const server = new McpServer(
     { name: SERVER_NAME, version: SERVER_VERSION },
-    { instructions: INSTRUCTIONS },
+    {
+      instructions: deps.licensing?.settings.enforced
+        ? `${INSTRUCTIONS} ${LICENSE_INSTRUCTIONS}`
+        : INSTRUCTIONS,
+    },
   );
 
   registerAppTool(
@@ -89,10 +133,18 @@ export function createServer(deps: ServerDeps): McpServer {
     },
     async (args): Promise<CallToolResult> => {
       try {
+        const entitlement = resolveEntitlement(
+          deps.licensing,
+          args.license_key,
+          deps.headerLicense,
+        );
+        if (entitlement.error) return failure(entitlement.error);
         const input = await readProjectInput(args.files ?? [], args.inline_files ?? [], {
           allowlist: deps.fileHostAllowlist,
         });
         const project = parsePentahoProject(input.files);
+        const gate = freeTierGate(deps, entitlement, project);
+        if (gate) return gate;
         const assessment = assessProject(project, { projectName: args.project_name });
         return {
           content: [{ type: "text", text: formatAssessment(assessment) }],
@@ -123,10 +175,24 @@ export function createServer(deps: ServerDeps): McpServer {
     },
     async (args): Promise<CallToolResult> => {
       try {
+        const entitlement = resolveEntitlement(
+          deps.licensing,
+          args.license_key,
+          deps.headerLicense,
+        );
+        if (entitlement.error) return failure(entitlement.error);
         const input = await readProjectInput(args.files ?? [], args.inline_files ?? [], {
           allowlist: deps.fileHostAllowlist,
         });
         const project = parsePentahoProject(input.files);
+        const gate = freeTierGate(deps, entitlement, project);
+        if (gate) return gate;
+        if (entitlement.tier === "free" && deps.licensing) {
+          const used = deps.licensing.quota.used();
+          if (used >= deps.licensing.settings.free.dailyBundles) {
+            return failure(quotaMessage(deps.licensing.settings, used));
+          }
+        }
         const projectName = args.project_name ?? deriveProjectName(project);
         const bundle = buildMigrationBundle(project, {
           projectName,
@@ -152,6 +218,7 @@ export function createServer(deps: ServerDeps): McpServer {
           );
         }
         const summary = summarizeBundle(bundle, download);
+        if (entitlement.tier === "free" && deps.licensing) deps.licensing.quota.record();
         return {
           content: [{ type: "text", text: formatBundleSummary(summary) }],
           structuredContent: summary,

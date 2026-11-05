@@ -1,8 +1,32 @@
 # Pentaho to AWS
 
+[![CI](https://github.com/dtnghla/chatgpt-plugin/actions/workflows/ci.yml/badge.svg)](https://github.com/dtnghla/chatgpt-plugin/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
+
 A ChatGPT/Codex plugin that assesses Pentaho Data Integration (PDI/Kettle) projects and generates a deployable AWS migration bundle: AWS Glue PySpark jobs, Step Functions state machines, EventBridge Scheduler schedules, Glue JDBC connections with placeholder Secrets Manager secrets, a migration report and one CloudFormation template.
 
+Upload a folder of `.ktr`/`.kjb` files and get a step-by-step conversion map (what converts automatically, what needs a human) plus working Glue scripts and infrastructure — instead of weeks of manual rewrite planning.
+
 The plugin is a read-only MCP server with an MCP Apps workbench. It never contacts AWS, Pentaho Server or your databases, never asks for AWS credentials or passwords, and does not deploy anything. You review the generated bundle and deploy it with the AWS CLI.
+
+## Try it in 60 seconds
+
+No Pentaho project of your own at hand? Use the included [samples/retail](samples/retail) project (synthetic retail warehouse ETL):
+
+1. Run the server:
+
+   ```bash
+   npm ci && npm run build && npm start
+   ```
+
+2. Connect ChatGPT (Developer mode → Connectors → Create → MCP server, URL `http://127.0.0.1:3000/mcp`) or use the MCP Inspector.
+3. Attach the `samples/retail` folder and ask:
+
+   > Assess these Pentaho files and tell me what needs manual work before moving to AWS.
+
+   > Generate the Glue, Step Functions and CloudFormation migration bundle for this project.
+
+You get the readiness report with an interactive workbench, then the migration ZIP with PySpark jobs, state machines, schedules and one CloudFormation template.
 
 ## What it does
 
@@ -63,6 +87,12 @@ Configuration is read from environment variables only; the server does not load 
 | `ARTIFACT_SIGNING_SECRET` | random per process | Secret used to HMAC-sign artifact download URLs. Set a stable value across replicas. |
 | `PUBLIC_BASE_URL` | unset | Public HTTPS origin used in download links. |
 | `ARTIFACT_TTL_SECONDS` | `900` | Bundle and link lifetime, 60-86400 seconds. |
+| `LICENSE_MODE` | `off` | Monetization: `off` keeps every tool unlimited; `enforced` activates free-tier gates and Pro license keys. |
+| `LICENSE_SIGNING_SECRET` | unset | 16+ character secret that verifies minted Pro keys. Required when `LICENSE_MODE=enforced`. |
+| `UPGRADE_URL` | unset | Purchase page (e.g. a Stripe payment link) shown in free-tier upgrade messages. |
+| `FREE_MAX_FILES` | `5` | Free-tier limit on project files per call (1-50). |
+| `FREE_MAX_STEPS` | `75` | Free-tier limit on workflow steps (transformation steps plus job entries) per call. |
+| `FREE_DAILY_BUNDLES` | `3` | Free-tier `generate_aws_migration` calls per rolling 24 hours per server process. |
 
 If `PUBLIC_BASE_URL` is not set and the store has no native link support, generated summaries omit the ZIP link and files remain readable through `get_migration_file` until the bundle expires.
 
@@ -86,6 +116,23 @@ npm run validate:plugin:release
 ```
 
 Release mode additionally requires a public MCP URL and listing links for the website, privacy policy, terms and support. Those are documented in [docs/submission.md](docs/submission.md).
+
+## Monetization
+
+The plugin ships an optional freemium layer. With `LICENSE_MODE=enforced`, projects above the free tier limits and bundle generations beyond the daily quota return a clear upgrade message that includes `UPGRADE_URL`, and a purchased Pro license key (passed as the `license_key` tool argument or the `x-pentaho-license-key` header) removes the limits. Keys are HMAC-signed tokens verified offline — no database, no license service, no network calls in the license path.
+
+Mint keys for customers with:
+
+```bash
+LICENSE_SIGNING_SECRET=<the server's secret> npm run license:generate -- --email alice@example.com
+LICENSE_SIGNING_SECRET=<the server's secret> npm run license:generate -- --email alice@example.com --days 365
+```
+
+The default `LICENSE_MODE=off` keeps the deployment free and unlimited. The full guide — tier design, checkout and key delivery with Stripe payment links, secret rotation, pricing notes — is in [docs/monetization.md](docs/monetization.md).
+
+## Distribution
+
+Shipping this publicly: [docs/launch.md](docs/launch.md) is the launch plan (OpenAI Plugins Directory submission, MCP registries, community channels), [docs/launch-posts.md](docs/launch-posts.md) has ready-to-adapt posts, [docs/review-test-cases.md](docs/review-test-cases.md) has the OpenAI review test cases, and [docs/submission.md](docs/submission.md) covers deployment and validation.
 
 ## Docker
 

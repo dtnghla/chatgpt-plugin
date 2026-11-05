@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<job>
+  <name>nightly_load</name>
+  <description>Nightly retail load and notification.</description>
+  <parameters>
+    <parameter>
+      <name>RUN_DATE</name>
+      <default_value>2026-01-01</default_value>
+      <description>Set by the scheduler.</description>
+    </parameter>
+  </parameters>
+  <connection>
+    <name>warehouse</name>
+    <server>${DB_HOST}</server>
+    <type>POSTGRESQL</type>
+    <database>retail</database>
+    <port>5432</port>
+    <username>etl</username>
+    <password>Encrypted 2be98afc86aa7f2e4cb1aa265cd7b1e73</password>
+  </connection>
+  <entries>
+    <entry>
+      <name>Start</name>
+      <type>SPECIAL</type>
+      <description>Every night at 02:15.</description>
+      <start>Y</start>
+      <dummy>N</dummy>
+      <repeat>Y</repeat>
+      <schedulerType>2</schedulerType>
+      <hour>2</hour>
+      <minutes>15</minutes>
+    </entry>
+    <entry>
+      <name>Load customers</name>
+      <type>TRANS</type>
+      <description>Refresh the customer dimension.</description>
+      <filename>${Internal.Job.Filename.Directory}/../transforms/customers.ktr</filename>
+      <transname>customers</transname>
+    </entry>
+    <entry>
+      <name>Load orders</name>
+      <type>TRANS</type>
+      <filename>${Internal.Job.Filename.Directory}/../transforms/orders.ktr</filename>
+      <transname>orders</transname>
+    </entry>
+    <entry>
+      <name>Run child job</name>
+      <type>JOB</type>
+      <filename>${Internal.Job.Filename.Directory}/child.kjb</filename>
+      <jobname>child</jobname>
+    </entry>
+    <entry>
+      <name>Publish export</name>
+      <type>TRANS</type>
+      <filename>${Internal.Job.Filename.Directory}/../transforms/exports.ktr</filename>
+      <transname>exports</transname>
+    </entry>
+    <entry>
+      <name>Refresh summary</name>
+      <type>SQL</type>
+      <connection>warehouse</connection>
+      <sql>CALL refresh_order_summary('${RUN_DATE}')</sql>
+    </entry>
+    <entry>
+      <name>Check extract</name>
+      <type>FILE_EXISTS</type>
+      <filename>/opt/retail/data/orders_summary.csv</filename>
+    </entry>
+    <entry>
+      <name>Notify team</name>
+      <type>MAIL</type>
+      <subject>Retail nightly load finished</subject>
+      <message>The nightly retail load for ${RUN_DATE} completed.</message>
+    </entry>
+    <entry>
+      <name>Success</name>
+      <type>SPECIAL</type>
+      <success>Y</success>
+      <dummy>N</dummy>
+    </entry>
+    <entry>
+      <name>Failure</name>
+      <type>SPECIAL</type>
+      <failure>Y</failure>
+      <dummy>N</dummy>
+      <message>Retail nightly load failed</message>
+    </entry>
+  </entries>
+  <hops>
+    <hop>
+      <from>Start</from>
+      <to>Load customers</to>
+      <enabled>Y</enabled>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Load customers</from>
+      <to>Load orders</to>
+      <enabled>Y</enabled>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Load orders</from>
+      <to>Run child job</to>
+      <enabled>Y</enabled>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Run child job</from>
+      <to>Publish export</to>
+      <enabled>Y</enabled>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Publish export</from>
+      <to>Refresh summary</to>
+      <enabled>Y</enabled>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Refresh summary</from>
+      <to>Check extract</to>
+      <enabled>Y</enabled>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Check extract</from>
+      <to>Notify team</to>
+      <enabled>Y</enabled>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Notify team</from>
+      <to>Success</to>
+      <enabled>Y</enabled>
+      <unconditional>Y</unconditional>
+    </hop>
+    <hop>
+      <from>Load customers</from>
+      <to>Failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+    </hop>
+    <hop>
+      <from>Load orders</from>
+      <to>Failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+    </hop>
+    <hop>
+      <from>Run child job</from>
+      <to>Failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+    </hop>
+    <hop>
+      <from>Publish export</from>
+      <to>Failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+    </hop>
+    <hop>
+      <from>Refresh summary</from>
+      <to>Failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+    </hop>
+    <hop>
+      <from>Check extract</from>
+      <to>Failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+    </hop>
+    <hop>
+      <from>Notify team</from>
+      <to>Failure</to>
+      <enabled>Y</enabled>
+      <evaluation>N</evaluation>
+    </hop>
+  </hops>
+</job>

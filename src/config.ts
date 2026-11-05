@@ -1,6 +1,7 @@
 import { randomBytes } from "node:crypto";
 
 export type ArtifactStoreKind = "memory" | "s3";
+export type LicenseMode = "off" | "enforced";
 
 export interface Config {
   port: number;
@@ -21,6 +22,14 @@ export interface Config {
   /** Public origin used in artifact download links. */
   publicBaseUrl: string | undefined;
   artifactTtlSeconds: number;
+  /** Monetization: off keeps every tool unlimited; enforced activates free-tier gates. */
+  licenseMode: LicenseMode;
+  licenseSigningSecret: string | undefined;
+  /** Purchase page shown in free-tier upgrade messages, e.g. a Stripe payment link. */
+  upgradeUrl: string | undefined;
+  freeMaxFiles: number;
+  freeMaxSteps: number;
+  freeDailyBundles: number;
 }
 
 export class ConfigError extends Error {
@@ -153,6 +162,58 @@ function parseTtl(raw: string | undefined): number {
   return seconds;
 }
 
+function parseLicenseMode(raw: string | undefined): LicenseMode {
+  const value = (raw ?? "off").trim().toLowerCase();
+  if (value !== "off" && value !== "enforced") {
+    throw new ConfigError('LICENSE_MODE must be "off" or "enforced".');
+  }
+  return value;
+}
+
+function parseSigningSecret(raw: string | undefined): string | undefined {
+  const value = raw?.trim();
+  if (value === undefined || value === "") return undefined;
+  if (value.length < 16) {
+    throw new ConfigError("LICENSE_SIGNING_SECRET must be at least 16 characters.");
+  }
+  return value;
+}
+
+/** Absolute HTTPS link (path and query allowed, no credentials or fragment) shown to users. */
+function parseUpgradeUrl(raw: string | undefined): string | undefined {
+  const value = raw?.trim();
+  if (value === undefined || value === "") return undefined;
+  let url: URL;
+  try {
+    url = new URL(value);
+  } catch {
+    throw new ConfigError("UPGRADE_URL must be an absolute https URL.");
+  }
+  const loopback = isLoopbackHost(url.hostname);
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && loopback)) {
+    throw new ConfigError("UPGRADE_URL must use https (http is only allowed for loopback hosts).");
+  }
+  if (url.username || url.password || url.hash) {
+    throw new ConfigError("UPGRADE_URL must not contain credentials or a fragment.");
+  }
+  return url.href;
+}
+
+function parseIntInRange(
+  raw: string | undefined,
+  name: string,
+  fallback: number,
+  min: number,
+  max: number,
+): number {
+  if (raw === undefined || raw.trim() === "") return fallback;
+  const value = Number(raw);
+  if (!Number.isInteger(value) || value < min || value > max) {
+    throw new ConfigError(`${name} must be an integer between ${min} and ${max}.`);
+  }
+  return value;
+}
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const host = env.HOST?.trim() || "127.0.0.1";
   const port = parsePort(env.PORT);
@@ -178,6 +239,14 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
   const publicBaseUrl = parseOrigin(env.PUBLIC_BASE_URL, "PUBLIC_BASE_URL");
   const widgetDomain = parseOrigin(env.WIDGET_DOMAIN, "WIDGET_DOMAIN");
 
+  const licenseMode = parseLicenseMode(env.LICENSE_MODE);
+  const licenseSigningSecret = parseSigningSecret(env.LICENSE_SIGNING_SECRET);
+  if (licenseMode === "enforced" && licenseSigningSecret === undefined) {
+    throw new ConfigError(
+      "LICENSE_SIGNING_SECRET is required when LICENSE_MODE=enforced: without it no license key can be verified.",
+    );
+  }
+
   return {
     port,
     host,
@@ -191,5 +260,11 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     artifactSigningSecret: env.ARTIFACT_SIGNING_SECRET?.trim() || randomBytes(32).toString("hex"),
     publicBaseUrl,
     artifactTtlSeconds: parseTtl(env.ARTIFACT_TTL_SECONDS),
+    licenseMode,
+    licenseSigningSecret,
+    upgradeUrl: parseUpgradeUrl(env.UPGRADE_URL),
+    freeMaxFiles: parseIntInRange(env.FREE_MAX_FILES, "FREE_MAX_FILES", 5, 1, 50),
+    freeMaxSteps: parseIntInRange(env.FREE_MAX_STEPS, "FREE_MAX_STEPS", 75, 1, 100_000),
+    freeDailyBundles: parseIntInRange(env.FREE_DAILY_BUNDLES, "FREE_DAILY_BUNDLES", 3, 0, 10_000),
   };
 }

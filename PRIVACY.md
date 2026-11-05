@@ -1,6 +1,6 @@
 # Privacy policy
 
-Last updated: 2026-10-31
+Last updated: 2026-11-05
 
 Pentaho to AWS is a self-hosted MCP server and ChatGPT/Codex plugin. It analyzes Pentaho Data Integration files that the user supplies and generates AWS migration artifacts. This policy describes what the software processes when you run or use it.
 
@@ -11,6 +11,8 @@ Pentaho to AWS is a self-hosted MCP server and ChatGPT/Codex plugin. It analyzes
 - **Generated artifacts.** Glue scripts, Step Functions definitions, schedules, a CloudFormation template, a migration report, a README and a manifest are held in the configured artifact store until they expire.
 
 The plugin does not require an account, does not use OAuth, and does not ask for AWS credentials, access keys, session tokens or database passwords.
+
+- **Optional license keys.** A deployment may enforce free-tier limits that a purchased Pro license key removes. When you pass a key (as a tool argument or a connection header), the server verifies its cryptographic signature locally and checks its expiry in memory. Keys are not logged, not stored persistently, and never sent to any third party or license service. See [docs/monetization.md](docs/monetization.md).
 
 ## Logging
 

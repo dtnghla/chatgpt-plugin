@@ -1,6 +1,6 @@
 # Terms of service
 
-Last updated: 2026-10-31
+Last updated: 2026-11-05
 
 These terms apply to the Pentaho to AWS plugin and MCP server in this repository. By using the software you agree to them. If you self-host the server, you are responsible for the deployment and for any terms you present to your own users.
 
@@ -21,6 +21,20 @@ Do not use the software to process data you are not authorized to process, to at
 ## Availability
 
 The repository is provided as open source without an SLA. Self-hosted deployments may be unavailable or lose in-memory bundles on restart. Bundles expire; regenerate them when needed.
+
+## Free tier and Pro license keys
+
+A deployment may enforce free-tier limits, such as a maximum project size or a number of bundle generations per day. These limits fund development, apply only to the tools offered by a deployment, and may change at any time; they never restrict what the software's source code permits you to run yourself under the MIT license.
+
+A **Pro license key** is a signed token that removes the free-tier limits of a deployment. Keys are sold separately through the checkout channel shown by that deployment (for example a payment link). Unless the seller states otherwise at the point of sale:
+
+- **Grant.** A purchase grants a non-exclusive, non-transferable right to use the key to unlock Pro limits. The underlying software remains MIT; the key changes only tool limits, not the outputs.
+- **Key integrity.** Do not share, resell, publish or attempt to forge keys or their signing secret. Leaked keys may be revoked by rotating the signing secret.
+- **Expiry.** Subscription keys carry an expiry and stop verifying after it passes; the deployment then falls back to the free tier. Perpetual keys do not expire.
+- **Refunds.** Handled per the seller's stated policy, through the payment provider used at checkout.
+- **No outcome promise.** A key unlocks limits, not migration quality. Generated artifacts remain advice under the section above and still require engineering review.
+
+License keys are verified locally by the server and are never sent to third parties. See [docs/monetization.md](docs/monetization.md) for how licensing works operationally.
 
 ## No warranty
 

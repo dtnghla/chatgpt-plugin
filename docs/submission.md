@@ -15,7 +15,7 @@ plugins/pentaho-to-aws/
 .agents/plugins/marketplace.json   Local development marketplace
 ```
 
-`npm run validate:plugin` validates the package against the bundled Agent Plugins schemas plus the repository's listing, icon, skill and security checks.
+`npm run validate:plugin` validates the package against the bundled Agent Plugins schemas plus the repository's listing, icon, skill and security checks. `npm run plugin:pack` writes `dist/pentaho-to-aws-plugin.zip`, the archive uploaded at the Plugins directory submission step.
 
 ## 1. Deploy the MCP server
 
@@ -37,6 +37,7 @@ Production environment checklist:
 - `AWS_REGION` set for the artifact bucket. The S3 backend uses the task role's default credential chain.
 - `FILE_HOST_ALLOWLIST` includes the host domain that delivers ChatGPT uploads (`oaiusercontent.com` and `openai.com` by default).
 - `ARTIFACT_TTL_SECONDS` left at 900 unless you need longer review windows.
+- `LICENSE_MODE` left at `off` unless you are selling Pro keys; when `enforced`, also set `LICENSE_SIGNING_SECRET` and `UPGRADE_URL` (see [docs/monetization.md](monetization.md)).
 - `WIDGET_DOMAIN` only if OpenAI requires a dedicated widget origin.
 - `OPENAI_APPS_CHALLENGE_TOKEN` set temporarily for domain verification.
 

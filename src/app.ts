@@ -4,6 +4,8 @@ import { createMcpHandler } from "@modelcontextprotocol/server";
 import express, { type ErrorRequestHandler, type Express } from "express";
 import { ArtifactService } from "./artifacts/store.js";
 import type { Config } from "./config.js";
+import { BundleQuota, type LicensingContext, licenseFromHeader } from "./licensing/entitlements.js";
+import { LICENSE_HEADER } from "./licensing/license.js";
 import { createServer, type ServerDeps } from "./server.js";
 
 export const MCP_BODY_LIMIT = "256kb";
@@ -48,11 +50,28 @@ export function createApp(
   logger: Logger = { info: () => {}, error: () => {} },
 ): AppHandle {
   const artifacts = deps.artifacts ?? ArtifactService.fromConfig(config);
+  const licensing: LicensingContext | undefined =
+    config.licenseMode === "enforced" && config.licenseSigningSecret !== undefined
+      ? {
+          settings: {
+            enforced: true,
+            signingSecret: config.licenseSigningSecret,
+            upgradeUrl: config.upgradeUrl,
+            free: {
+              maxFiles: config.freeMaxFiles,
+              maxSteps: config.freeMaxSteps,
+              dailyBundles: config.freeDailyBundles,
+            },
+          },
+          quota: new BundleQuota(),
+        }
+      : undefined;
   const serverDeps: ServerDeps = {
     loadWidgetHtml: deps.loadWidgetHtml,
     artifacts,
     fileHostAllowlist: config.fileHostAllowlist,
     widgetDomain: config.widgetDomain,
+    licensing,
   };
   const app = express();
   app.disable("x-powered-by");
@@ -105,9 +124,16 @@ export function createApp(
     });
   }
 
-  const handler = createMcpHandler(() => createServer(serverDeps), {
-    onerror: (error) => logger.error(`mcp: ${error.message}`),
-  });
+  const handler = createMcpHandler(
+    (ctx) => {
+      const headerLicense = licenseFromHeader(
+        licensing?.settings,
+        ctx.requestInfo?.headers.get(LICENSE_HEADER) ?? undefined,
+      );
+      return createServer({ ...serverDeps, headerLicense });
+    },
+    { onerror: (error) => logger.error(`mcp: ${error.message}`) },
+  );
   const handleMcp = toNodeHandler(handler, {
     onerror: (error) => logger.error(`mcp transport: ${error.message}`),
   });

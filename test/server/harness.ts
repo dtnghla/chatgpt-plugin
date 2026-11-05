@@ -44,6 +44,12 @@ export async function startServer(
     artifactSigningSecret: "test-artifact-signing-secret",
     publicBaseUrl: undefined,
     artifactTtlSeconds: 900,
+    licenseMode: "off",
+    licenseSigningSecret: undefined,
+    upgradeUrl: undefined,
+    freeMaxFiles: 5,
+    freeMaxSteps: 75,
+    freeDailyBundles: 3,
     ...overrides,
   };
   const { app, close } = createApp(

@@ -26,6 +26,8 @@
     "validate:plugin": "tsx scripts/validate-plugin.ts",
     "validate:plugin:release": "tsx scripts/validate-plugin.ts --release",
     "plugin:set-url": "tsx scripts/set-server-url.ts",
+    "plugin:pack": "tsx scripts/pack-plugin.ts",
+    "license:generate": "tsx scripts/license-generate.ts",
     "check:generated": "tsx scripts/check-generated.ts",
     "smoke:pdi": "tsx scripts/pdi-samples-smoke.ts",
     "inspect": "npx @modelcontextprotocol/inspector",

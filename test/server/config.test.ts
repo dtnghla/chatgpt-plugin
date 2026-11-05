@@ -156,6 +156,51 @@ describe("loadConfig", () => {
       /^[a-f0-9]{64}$/,
     );
   });
+
+  it("defaults licensing to off with unlimited behavior", () => {
+    expect(loadConfig({}).licenseMode).toBe("off");
+    expect(loadConfig({}).licenseSigningSecret).toBeUndefined();
+    expect(loadConfig({}).upgradeUrl).toBeUndefined();
+    expect(loadConfig({})).toMatchObject({
+      freeMaxFiles: 5,
+      freeMaxSteps: 75,
+      freeDailyBundles: 3,
+    });
+  });
+
+  it("enforced licensing requires a signing secret", () => {
+    const config = loadConfig({
+      LICENSE_MODE: "enforced",
+      LICENSE_SIGNING_SECRET: "a-long-enough-secret",
+    });
+    expect(config.licenseMode).toBe("enforced");
+    expect(config.licenseSigningSecret).toBe("a-long-enough-secret");
+    expect(() => loadConfig({ LICENSE_MODE: "enforced" })).toThrow(/LICENSE_SIGNING_SECRET/);
+    expect(() => loadConfig({ LICENSE_MODE: "paid" })).toThrow(/LICENSE_MODE/);
+    expect(() => loadConfig({ LICENSE_SIGNING_SECRET: "short" })).toThrow(/at least 16 characters/);
+  });
+
+  it("validates the upgrade URL and free tier limits", () => {
+    expect(
+      loadConfig({ UPGRADE_URL: "https://buy.stripe.com/abc123?prefilled=1" }).upgradeUrl,
+    ).toBe("https://buy.stripe.com/abc123?prefilled=1");
+    expect(loadConfig({ UPGRADE_URL: "http://localhost:3000/upgrade" }).upgradeUrl).toBe(
+      "http://localhost:3000/upgrade",
+    );
+    expect(() => loadConfig({ UPGRADE_URL: "http://buy.example.com/pro" })).toThrow(/https/);
+    expect(() => loadConfig({ UPGRADE_URL: "buy.example.com" })).toThrow(/absolute https/);
+    expect(() => loadConfig({ UPGRADE_URL: "https://user:pass@buy.example.com" })).toThrow(
+      /credentials/,
+    );
+    expect(() => loadConfig({ UPGRADE_URL: "https://buy.example.com/#top" })).toThrow(/fragment/);
+    expect(() => loadConfig({ FREE_MAX_FILES: "0" })).toThrow(/FREE_MAX_FILES/);
+    expect(() => loadConfig({ FREE_MAX_FILES: "51" })).toThrow(/FREE_MAX_FILES/);
+    expect(() => loadConfig({ FREE_MAX_STEPS: "abc" })).toThrow(/FREE_MAX_STEPS/);
+    expect(() => loadConfig({ FREE_DAILY_BUNDLES: "-1" })).toThrow(/FREE_DAILY_BUNDLES/);
+    expect(
+      loadConfig({ FREE_MAX_FILES: "10", FREE_MAX_STEPS: "150", FREE_DAILY_BUNDLES: "0" }),
+    ).toMatchObject({ freeMaxFiles: 10, freeMaxSteps: 150, freeDailyBundles: 0 });
+  });
 });
 
 describe("isLoopbackHost", () => {

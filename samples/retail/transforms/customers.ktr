@@ -1,0 +1,179 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<transformation>
+  <info>
+    <name>customers</name>
+    <description>Load customer master data from the landing zone.</description>
+    <directory>/transforms</directory>
+    <parameters>
+      <parameter>
+        <name>RUN_DATE</name>
+        <default_value>2026-01-01</default_value>
+        <description>Logical run date passed by the scheduler.</description>
+      </parameter>
+    </parameters>
+  </info>
+  <connection>
+    <name>warehouse</name>
+    <server>${DB_HOST}</server>
+    <type>POSTGRESQL</type>
+    <access>Native</access>
+    <database>retail</database>
+    <port>5432</port>
+    <username>etl</username>
+    <password>Encrypted 2be98afc86aa7f2e4cb1aa265cd7b1e73</password>
+  </connection>
+  <order>
+    <hop>
+      <from>Get run date</from>
+      <to>Read customers</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Read customers</from>
+      <to>Normalize fields</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Normalize fields</from>
+      <to>Valid countries</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Valid countries</from>
+      <to>Add loyalty score</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Add loyalty score</from>
+      <to>Sort by customer</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Sort by customer</from>
+      <to>Deduplicate</to>
+      <enabled>Y</enabled>
+    </hop>
+    <hop>
+      <from>Deduplicate</from>
+      <to>Write customers</to>
+      <enabled>Y</enabled>
+    </hop>
+  </order>
+  <step>
+    <name>Get run date</name>
+    <type>GetVariable</type>
+    <description>Bind the scheduler run date.</description>
+    <variable>
+      <name>RUN_DATE</name>
+      <type>String</type>
+    </variable>
+  </step>
+  <step>
+    <name>Read customers</name>
+    <type>CsvInput</type>
+    <filename>${Internal.Transformation.Filename.Directory}/../data/customers.csv</filename>
+    <delimiter>,</delimiter>
+    <header>Y</header>
+    <fields>
+      <field>
+        <name>customer_id</name>
+        <type>Integer</type>
+      </field>
+      <field>
+        <name>name</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>email</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>country</name>
+        <type>String</type>
+      </field>
+      <field>
+        <name>lifetime_value</name>
+        <type>Number</type>
+      </field>
+      <field>
+        <name>created_at</name>
+        <type>Date</type>
+      </field>
+    </fields>
+  </step>
+  <step>
+    <name>Normalize fields</name>
+    <type>SelectValues</type>
+    <fields>
+      <meta>
+        <name>name</name>
+        <rename>full_name</rename>
+        <type>String</type>
+      </meta>
+      <meta>
+        <name>created_at</name>
+        <type>Timestamp</type>
+      </meta>
+    </fields>
+  </step>
+  <step>
+    <name>Valid countries</name>
+    <type>FilterRows</type>
+    <compare>
+      <condition>
+        <leftvalue>country</leftvalue>
+        <function>&lt;&gt;</function>
+        <value>
+          <type>String</type>
+          <text>XX</text>
+          <isnull>N</isnull>
+        </value>
+        <negated>N</negated>
+      </condition>
+    </compare>
+  </step>
+  <step>
+    <name>Add loyalty score</name>
+    <type>Calculator</type>
+    <calculation>
+      <field_name>loyalty_score</field_name>
+      <calc_type>MULTIPLY</calc_type>
+      <field_a>lifetime_value</field_a>
+      <field_b>0.1</field_b>
+      <field_c/>
+    </calculation>
+    <calculation>
+      <field_name>email_domain</field_name>
+      <calc_type>LOWER</calc_type>
+      <field_a>email</field_a>
+      <field_b/>
+      <field_c/>
+    </calculation>
+  </step>
+  <step>
+    <name>Sort by customer</name>
+    <type>SortRows</type>
+    <fields>
+      <field>
+        <name>customer_id</name>
+        <ascending>Y</ascending>
+      </field>
+    </fields>
+  </step>
+  <step>
+    <name>Deduplicate</name>
+    <type>Unique</type>
+    <fields>
+      <field>
+        <name>customer_id</name>
+      </field>
+    </fields>
+  </step>
+  <step>
+    <name>Write customers</name>
+    <type>TableOutput</type>
+    <connection>warehouse</connection>
+    <table>dim_customers</table>
+    <truncate>Y</truncate>
+  </step>
+</transformation>

@@ -42,6 +42,16 @@ const inlineFilesField = z
     "Pentaho files pasted inline. Use this when the host cannot upload files. Do not include real passwords.",
   );
 
+const licenseKeyField = z
+  .string()
+  .trim()
+  .min(1)
+  .max(512)
+  .optional()
+  .describe(
+    "Optional Pro license key (PTA1....) that removes free tier limits. Omit it to use the free tier.",
+  );
+
 export const analyzeInputSchema = z.object({
   files: filesField,
   inline_files: inlineFilesField,
@@ -52,6 +62,7 @@ export const analyzeInputSchema = z.object({
     .max(80)
     .optional()
     .describe("Name for the migration project. Derived from the file paths when omitted."),
+  license_key: licenseKeyField,
 });
 
 const pathMappingSchema = z.object({
@@ -113,6 +124,7 @@ export const generateInputSchema = z.object({
     .describe(
       'Optional EventBridge Scheduler expressions keyed by "job:entry" or entry name, for example "nightly:START" -> "cron(0 2 * * ? *)".',
     ),
+  license_key: licenseKeyField,
 });
 
 export const getFileInputSchema = z.object({
