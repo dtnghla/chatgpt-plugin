@@ -2,19 +2,32 @@
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "aws-data-modernizer",
   "version": "1.0.0",
-  "description": "Assesses Pentaho Data Integration jobs and transformations, maps every step, and generates a deployable AWS Glue, Step Functions and CloudFormation migration bundle.",
+  "description": "Assesses Pentaho ETL projects and database, data warehouse and data lake DDL, then generates deployable AWS migration bundles: Glue, Step Functions, DMS, Redshift, Athena with Apache Iceberg and CloudFormation.",
   "author": {
     "name": "dtnghla"
   },
   "repository": "https://github.com/dtnghla/chatgpt-plugin",
   "license": "MIT",
-  "keywords": ["pentaho", "pdi", "aws", "migration", "glue", "step functions", "cloudformation"],
+  "keywords": [
+    "data modernization",
+    "database migration",
+    "data warehouse",
+    "data lake",
+    "aws",
+    "dms",
+    "redshift",
+    "athena",
+    "iceberg",
+    "glue",
+    "pentaho",
+    "cloudformation"
+  ],
   "extensions": {
     "com.openai": {
       "interface": {
-        "displayName": "Pentaho to AWS",
-        "shortDescription": "Assess PDI, generate AWS code",
-        "longDescription": "Pentaho to AWS assesses Pentaho Data Integration projects and turns them into deployable AWS artifacts. Upload .ktr transformations, .kjb jobs, kettle.properties or a project ZIP and it maps each step to AWS Glue PySpark or marks it for manual work, scores migration readiness and lists placeholder connections and open questions.\n\nWhen you ask for the migration, it generates Glue 6.0 PySpark scripts, Step Functions state machines with JSONata, EventBridge Scheduler schedules, Glue JDBC connections with placeholder Secrets Manager secrets, a migration report and one CloudFormation template, packaged as a deterministic ZIP.\n\nIt is read-only. It never connects to AWS or your databases, never asks for AWS credentials or passwords, and strips passwords found in the uploaded project. You deploy the generated bundle yourself with the AWS CLI.\n\nWhat it can do:\n- Assess transformations, jobs, connections, parameters and schedules\n- Generate Glue jobs, state machines, schedules and a CloudFormation template\n- List manual steps, placeholder secrets and deployment commands",
+        "displayName": "Data Modernizer for AWS",
+        "shortDescription": "Assess and migrate data to AWS",
+        "longDescription": "Data Modernizer for AWS assesses data platforms and turns them into deployable AWS artifacts. Upload database DDL exports (Oracle, SQL Server, MySQL/MariaDB, PostgreSQL), data warehouse DDL and BTEQ scripts (Teradata, Netezza), Hive data lake DDL, or Pentaho Data Integration projects.\n\nThe assessment detects the source engine, inventories tables, views, indexes, sequences, procedural code and table locations, maps every column type to the AWS target, scores readiness and lists open questions. Targets are Aurora PostgreSQL, Aurora MySQL, Redshift Serverless, and Amazon S3 with Apache Iceberg tables queried by Athena; Pentaho jobs map to AWS Glue and Step Functions.\n\nWhen you ask for the migration, it generates target DDL, data movement (AWS DMS Serverless, Redshift COPY loads orchestrated by Step Functions, or DataSync with Athena), a migration report and one CloudFormation template, packaged as a deterministic ZIP.\n\nIt is read-only. It never connects to your databases or AWS, never asks for credentials, and strips passwords found in uploaded files. You deploy the bundle yourself with the AWS CLI.\n\nWhat it can do:\n- Assess database, warehouse, data lake and Pentaho projects\n- Map column types, views and procedural code to AWS\n- Generate DDL, data movement, orchestration and CloudFormation",
         "developerName": "dtnghla",
         "category": "Data & Analytics",
         "websiteURL": "https://github.com/dtnghla/chatgpt-plugin",
@@ -22,15 +35,17 @@
         "termsOfServiceURL": "https://github.com/dtnghla/chatgpt-plugin/blob/main/TERMS.md",
         "supportURL": "https://github.com/dtnghla/chatgpt-plugin/issues",
         "capabilities": [
-          "Assess Pentaho transformations, jobs and connections",
-          "Map PDI steps to AWS Glue PySpark",
-          "Generate Step Functions, schedules and CloudFormation",
-          "List manual steps and placeholder secrets"
+          "Assess Oracle, SQL Server, MySQL and PostgreSQL schemas",
+          "Assess Teradata and Netezza warehouses and Hive data lakes",
+          "Map column types, views and procedural code to AWS",
+          "Generate DMS, Redshift COPY and Athena Iceberg loads",
+          "Assess Pentaho jobs and generate Glue and Step Functions",
+          "Generate one CloudFormation template per migration"
         ],
         "defaultPrompt": [
-          "Assess these Pentaho .ktr and .kjb files and tell me what needs manual work before moving to AWS.",
-          "Generate the Glue, Step Functions and CloudFormation bundle for this Pentaho project.",
-          "Which steps cannot be converted automatically, and which secrets must I fill after deploying?"
+          "Assess these database DDL exports and tell me what needs manual work before moving to AWS.",
+          "Generate the AWS migration bundle for this Teradata warehouse.",
+          "Assess these Pentaho .ktr and .kjb files and generate a Glue migration bundle."
         ],
         "brandColor": "#0F766E",
         "brandColorDark": "#5EEAD4",

@@ -1,12 +1,12 @@
 interface:
-  display_name: "Migrate Pentaho to AWS"
-  short_description: "Assess PDI, generate AWS code"
-  default_prompt: "Assess my Pentaho .ktr and .kjb files and generate an AWS migration bundle."
+  display_name: "Modernize data platforms to AWS"
+  short_description: "Assess, then generate AWS migration code"
+  default_prompt: "Assess my database schema exports and generate an AWS migration bundle."
 
 dependencies:
   tools:
     - type: "mcp"
       value: "aws-data-modernizer"
-      description: "Assess Pentaho projects and generate Glue, Step Functions and CloudFormation artifacts"
+      description: "Assess Pentaho, database, warehouse and Hive projects and generate AWS migration artifacts"
       transport: "streamable_http"
       url: "http://localhost:3000/mcp"

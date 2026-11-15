@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { summarizeDatabaseBundle } from "../../src/database/bundle.js";
 import { assessProject } from "../../src/migration/assessment.js";
 import { summarizeBundle } from "../../src/migration/bundle.js";
 import type { FlowGraph } from "../../src/migration/types.js";
@@ -7,7 +8,10 @@ import {
   assessmentOf,
   bundlePrompt,
   COLUMN_GAP,
+  complexityLabel,
   DIAGRAM_PADDING,
+  databaseAssessmentOf,
+  downloadOf,
   edgePath,
   fileKindLabel,
   filePrompt,
@@ -16,12 +20,15 @@ import {
   flowPrompt,
   formatBytes,
   generatePrompt,
+  isDatabase,
   layoutFlow,
   modelContextText,
+  movementLabel,
   NODE_HEIGHT,
   NODE_WIDTH,
   parseMigrationFile,
   parseWorkbenchData,
+  passwordNote,
   projectName,
   ROW_GAP,
   readiness,
@@ -33,12 +40,15 @@ import {
   sortedRisks,
   statusLabel,
 } from "../../web/src/model.js";
-import { fixtureFiles, retailBundle } from "../helpers.js";
+import { databaseBundle, fixtureFiles, retailBundle } from "../helpers.js";
 
 const PROJECT = parsePentahoProject(fixtureFiles());
 const ASSESSMENT = assessProject(PROJECT);
 const BUNDLE = retailBundle();
 const SUMMARY = summarizeBundle(BUNDLE);
+const DB_BUNDLE = databaseBundle("oracle-hr");
+const DB_SUMMARY = summarizeDatabaseBundle(DB_BUNDLE);
+const DB_ASSESSMENT = DB_BUNDLE.assessment;
 
 const FLOW: FlowGraph = {
   kind: "job",
@@ -290,6 +300,89 @@ describe("prompts and model context", () => {
     };
     expect(recommendationText({ kind: "assessment", assessment: clean })).toContain(
       "maps automatically",
+    );
+  });
+});
+
+describe("database workbench model", () => {
+  const DB_VIEW = { kind: "database-assessment" as const, assessment: DB_ASSESSMENT };
+  const DB_BUNDLE_VIEW = { kind: "database-bundle" as const, bundle: DB_SUMMARY };
+
+  it("parses database assessment and bundle payloads", () => {
+    const assessment = parseWorkbenchData(DB_ASSESSMENT);
+    expect(assessment?.kind).toBe("database-assessment");
+    if (assessment?.kind === "database-assessment") {
+      expect(assessment.assessment.projectName).toBe(DB_ASSESSMENT.projectName);
+      expect(assessment.assessment.totals.tables).toBe(DB_ASSESSMENT.totals.tables);
+    }
+    const bundle = parseWorkbenchData(DB_SUMMARY);
+    expect(bundle?.kind).toBe("database-bundle");
+    if (bundle?.kind === "database-bundle") {
+      expect(bundle.bundle.bundle_id).toBe(DB_BUNDLE.id);
+    }
+    expect(parseWorkbenchData({ workload: "database", projectName: "x" })).toBeNull();
+    expect(parseWorkbenchData({ ...DB_SUMMARY, workload: "pentaho" })).toBeNull();
+  });
+
+  it("uses the database generate prompt and password note", () => {
+    expect(generatePrompt(DB_VIEW)).toContain("generate_database_migration");
+    expect(generatePrompt(DB_BUNDLE_VIEW)).toContain("generate_database_migration");
+    expect(generatePrompt(DB_VIEW)).toContain("manual objects");
+    const note =
+      "Database credentials are generated as Secrets Manager placeholders; no password is read or stored.";
+    expect(passwordNote(DB_VIEW)).toBe(note);
+    expect(passwordNote(DB_BUNDLE_VIEW)).toBe(note);
+    expect(passwordNote({ kind: "assessment", assessment: ASSESSMENT })).toContain(
+      "Passwords from the Pentaho project were removed.",
+    );
+    expect(
+      passwordNote({ kind: "assessment", assessment: { ...ASSESSMENT, connections: [] } }),
+    ).toBeNull();
+  });
+
+  it("labels movement, complexity and SQL file kinds", () => {
+    expect(movementLabel("dms")).toBe("DMS");
+    expect(movementLabel("copy")).toBe("S3 + COPY");
+    expect(movementLabel("datasync")).toBe("DataSync");
+    expect(movementLabel("s3")).toBe("Read in place");
+    expect(movementLabel("manual")).toBe("Manual");
+    expect(complexityLabel("low")).toBe("Low");
+    expect(complexityLabel("medium")).toBe("Medium");
+    expect(complexityLabel("high")).toBe("High");
+    expect(fileKindLabel("sql")).toBe("SQL");
+    expect(fileKindLabel("shell")).toBe("Shell script");
+  });
+
+  it("narrowing helpers, model context, downloads and recommendations", () => {
+    expect(isDatabase(DB_VIEW)).toBe(true);
+    expect(isDatabase(DB_BUNDLE_VIEW)).toBe(true);
+    expect(isDatabase({ kind: "assessment", assessment: ASSESSMENT })).toBe(false);
+    expect(isDatabase({ kind: "bundle", bundle: SUMMARY })).toBe(false);
+    expect(databaseAssessmentOf(DB_VIEW)).toBe(DB_ASSESSMENT);
+    expect(databaseAssessmentOf(DB_BUNDLE_VIEW)).toBe(DB_SUMMARY.assessment);
+    expect(modelContextText(DB_VIEW)).toContain(
+      `The user is viewing the Oracle to Aurora PostgreSQL assessment for "${DB_ASSESSMENT.projectName}"`,
+    );
+    expect(modelContextText(DB_BUNDLE_VIEW)).toContain(
+      `AWS modernization bundle ${DB_SUMMARY.bundle_id}`,
+    );
+    expect(downloadOf(DB_VIEW)).toBeNull();
+    expect(downloadOf(DB_BUNDLE_VIEW)?.bundleId).toBe(DB_SUMMARY.bundle_id);
+    expect(downloadOf(DB_BUNDLE_VIEW)?.url).toBeUndefined();
+    expect(recommendationText(DB_VIEW)).toContain("Before deploying, resolve:");
+    const review = {
+      ...DB_ASSESSMENT,
+      readiness: { ...DB_ASSESSMENT.readiness, blockers: [] },
+    };
+    expect(recommendationText({ kind: "database-assessment", assessment: review })).toContain(
+      "Some columns, views or objects need review.",
+    );
+    const clean = {
+      ...review,
+      attention: [],
+    };
+    expect(recommendationText({ kind: "database-assessment", assessment: clean })).toContain(
+      "The schema maps automatically. Review the generated bundle before deploying it.",
     );
   });
 });

@@ -5,7 +5,11 @@ import {
   applyHostStyleVariables,
   type McpUiHostContext,
 } from "@modelcontextprotocol/ext-apps";
+import type { DatabaseBundleSummary } from "../../src/database/bundle.js";
+import { ENGINE_LABELS, TARGET_LABELS } from "../../src/database/labels.js";
+import type { DatabaseAssessment } from "../../src/database/types.js";
 import type {
+  BundleFile,
   BundleSummary,
   FlowGraph,
   MigrationFileResult,
@@ -15,6 +19,10 @@ import type {
 import {
   assessmentOf,
   bundlePrompt,
+  complexityLabel,
+  type DatabaseData,
+  databaseAssessmentOf,
+  downloadOf,
   edgePath,
   fileKindLabel,
   filePrompt,
@@ -23,10 +31,14 @@ import {
   flowPrompt,
   formatBytes,
   generatePrompt,
+  isDatabase,
   layoutFlow,
   modelContextText,
+  movementLabel,
+  type PentahoData,
   parseMigrationFile,
   parseWorkbenchData,
+  passwordNote,
   projectName,
   readiness,
   readinessLabel,
@@ -182,19 +194,22 @@ function showInvalid(detail: string): void {
 }
 
 function selectTab(id: TabId): void {
-  if (id === "bundle" && data?.kind !== "bundle") return;
+  const bundleReady = data?.kind === "bundle" || data?.kind === "database-bundle";
+  if (id === "bundle" && !bundleReady) return;
+  if (id === "flows" && data !== null && isDatabase(data)) return;
   activeTab = id;
   updateTabs();
   renderPanel();
 }
 
 function updateTabs(): void {
-  const bundleReady = data?.kind === "bundle";
+  const bundleReady = data?.kind === "bundle" || data?.kind === "database-bundle";
+  const database = data !== null && isDatabase(data);
   for (const [id, button] of Object.entries(tabButtons) as [TabId, HTMLButtonElement][]) {
     const selected = id === activeTab;
     button.setAttribute("aria-selected", String(selected));
     button.tabIndex = selected ? 0 : -1;
-    button.disabled = id === "bundle" && !bundleReady;
+    button.disabled = (id === "bundle" && !bundleReady) || (id === "flows" && database);
   }
   panel.setAttribute("aria-labelledby", `tab-${activeTab}`);
 }
@@ -286,7 +301,6 @@ async function sendPrompt(prompt: string, button?: HTMLButtonElement): Promise<v
 }
 
 function readinessCard(view: WorkbenchData): HTMLElement {
-  const assessment = assessmentOf(view);
   const state = readiness(view);
   const card = section("Readiness", recommendationText(view));
   const head = el("div", "readiness-head");
@@ -319,24 +333,25 @@ function readinessCard(view: WorkbenchData): HTMLElement {
   }
 
   const actions = el("div", "actions");
-  if (view.kind === "assessment") {
-    actions.append(actionButton("Generate AWS bundle", generatePrompt(), true));
+  if (view.kind === "assessment" || view.kind === "database-assessment") {
+    actions.append(actionButton("Generate AWS bundle", generatePrompt(view), true));
   } else {
-    const url = safeDownloadUrl(view.bundle.download_url);
-    if (url) {
+    const download = downloadOf(view);
+    const url = safeDownloadUrl(download?.url);
+    if (url && download) {
       const link = el("a", "btn primary", "Download ZIP");
       link.href = url;
       link.target = "_blank";
       link.rel = "noopener noreferrer";
       actions.append(link);
-      if (view.bundle.download_expires_at) {
-        const expiry = new Date(view.bundle.download_expires_at);
+      if (download.expiresAt) {
+        const expiry = new Date(download.expiresAt);
         if (Number.isFinite(expiry.getTime())) {
           actions.append(
             el(
               "span",
               "muted",
-              `Link expires ${expiry.toLocaleString(locale)} (${relativeTime(view.bundle.download_expires_at, Date.now()) ?? "soon"}).`,
+              `Link expires ${expiry.toLocaleString(locale)} (${relativeTime(download.expiresAt, Date.now()) ?? "soon"}).`,
             ),
           );
         }
@@ -346,22 +361,15 @@ function readinessCard(view: WorkbenchData): HTMLElement {
         el(
           "span",
           "muted",
-          `No download link is configured. Read files with bundle_id ${view.bundle.bundle_id}.`,
+          `No download link is configured. Read files with bundle_id ${download?.bundleId ?? ""}.`,
         ),
       );
     }
     actions.append(actionButton("Ask about this bundle", bundlePrompt()));
   }
   card.append(actions);
-  card.append(
-    el(
-      "p",
-      "muted small",
-      assessment.connections.some((connection) => connection.hasPassword)
-        ? "Passwords from the Pentaho project were removed. Fill the generated Secrets Manager placeholders after deployment."
-        : "This workbench is read-only and never contacts AWS or your databases.",
-    ),
-  );
+  const note = passwordNote(view);
+  if (note) card.append(el("p", "muted small", note));
   return card;
 }
 
@@ -465,10 +473,10 @@ function schedulesCard(assessment: ProjectAssessment): HTMLElement | null {
   return card;
 }
 
-function questionsCard(assessment: ProjectAssessment): HTMLElement | null {
-  if (assessment.questions.length === 0) return null;
+function questionsCard(questions: string[]): HTMLElement | null {
+  if (questions.length === 0) return null;
   const card = section("Open questions");
-  card.append(bulletList(assessment.questions));
+  card.append(bulletList(questions));
   return card;
 }
 
@@ -493,11 +501,11 @@ function parametersCard(assessment: ProjectAssessment): HTMLElement | null {
   return card;
 }
 
-function risksCard(assessment: ProjectAssessment): HTMLElement | null {
-  if (assessment.risks.length === 0) return null;
+function risksCard(risks: Risk[]): HTMLElement | null {
+  if (risks.length === 0) return null;
   const card = section("Risks and warnings");
   const list = el("ul", "risk-list");
-  for (const risk of sortedRisks(assessment.risks)) {
+  for (const risk of sortedRisks(risks)) {
     list.append(riskItem(risk));
   }
   card.append(list);
@@ -518,7 +526,7 @@ function riskItem(risk: Risk): HTMLElement {
   return item;
 }
 
-function renderOverview(view: WorkbenchData): HTMLElement[] {
+function renderOverview(view: PentahoData): HTMLElement[] {
   const assessment = assessmentOf(view);
   const nodes: (HTMLElement | null)[] = [
     readinessCard(view),
@@ -527,9 +535,154 @@ function renderOverview(view: WorkbenchData): HTMLElement[] {
     coverageCard(assessment),
     connectionsCard(assessment),
     schedulesCard(assessment),
-    questionsCard(assessment),
+    questionsCard(assessment.questions),
     parametersCard(assessment),
-    risksCard(assessment),
+    risksCard(assessment.risks),
+  ];
+  return nodes.filter((node): node is HTMLElement => node !== null);
+}
+
+function databaseMetricsCard(assessment: DatabaseAssessment): HTMLElement {
+  const card = section("Inventory");
+  const grid = el("div", "metrics");
+  grid.append(
+    metric(assessment.totals.files, "Files"),
+    metric(assessment.totals.schemas, "Schemas"),
+    metric(assessment.totals.tables, "Tables"),
+    metric(assessment.totals.columns, "Columns"),
+    metric(assessment.totals.views, "Views"),
+    metric(assessment.totals.indexes, "Indexes"),
+    metric(assessment.totals.sequences, "Sequences"),
+    metric(assessment.totals.procedural, "Procedural objects"),
+    metric(
+      `${assessment.totals.automaticColumns}/${assessment.totals.partialColumns}/${assessment.totals.manualColumns}`,
+      "Automatic / partial / manual",
+      "Columns",
+    ),
+  );
+  card.append(grid);
+  return card;
+}
+
+function databaseAttentionCard(assessment: DatabaseAssessment): HTMLElement | null {
+  if (assessment.attention.length === 0) return null;
+  const card = section(
+    "Items needing attention",
+    "Partial columns, views and objects need review; manual ones need hands-on conversion.",
+  );
+  const list = el("ul", "attention-list");
+  for (const item of assessment.attention) {
+    const node = el("li", "attention");
+    node.append(
+      statusBadge(item.status),
+      el("span", "attention-name", item.name),
+      el("span", "attention-meta", `${item.kind} · ${item.file}:${item.line} · ${item.reason}`),
+    );
+    list.append(node);
+  }
+  card.append(list);
+  if (assessment.truncated.attention) {
+    card.append(
+      el("p", "muted small", "Showing the first 200 items; migration-report.md lists all of them."),
+    );
+  }
+  return card;
+}
+
+function typeCoverageCard(assessment: DatabaseAssessment): HTMLElement | null {
+  if (assessment.typeCoverage.length === 0) return null;
+  const card = section("Type coverage", "How each source column type maps to the AWS target.");
+  const rows = assessment.typeCoverage.map((entry) => [
+    entry.sourceType,
+    String(entry.count),
+    statusBadge(entry.status),
+    entry.targetType,
+    entry.caveat ?? "—",
+  ]);
+  card.append(table(["Source type", "Columns", "Status", "Target type", "Notes"], rows));
+  return card;
+}
+
+function objectCoverageCard(assessment: DatabaseAssessment): HTMLElement | null {
+  if (assessment.objectCoverage.length === 0) return null;
+  const card = section("Object coverage");
+  const rows = assessment.objectCoverage.map((entry) => [
+    entry.kind,
+    String(entry.count),
+    String(entry.automatic),
+    String(entry.partial),
+    String(entry.manual),
+    entry.conversion,
+  ]);
+  card.append(table(["Object", "Count", "Automatic", "Partial", "Manual", "Conversion"], rows));
+  return card;
+}
+
+function proceduralCard(assessment: DatabaseAssessment): HTMLElement | null {
+  if (assessment.procedural.length === 0) return null;
+  const card = section(
+    "Procedural objects",
+    "Inventoried for manual conversion; AWS DMS Schema Conversion can produce a first draft.",
+  );
+  const rows = assessment.procedural.map((object) => [
+    `${object.schema}.${object.name}`,
+    object.kind,
+    String(object.lines),
+    complexityLabel(object.complexity),
+    object.features.join(", ") || "—",
+  ]);
+  card.append(table(["Object", "Kind", "Lines", "Complexity", "Features"], rows));
+  return card;
+}
+
+function databaseTablesCard(assessment: DatabaseAssessment): HTMLElement | null {
+  if (assessment.tables.length === 0) return null;
+  const card = section("Tables");
+  const rows = assessment.tables.map((entry) => [
+    `${entry.schema}.${entry.name}`,
+    String(entry.columns),
+    entry.primaryKey ? "Yes" : "No",
+    movementLabel(entry.movement),
+    statusBadge(entry.status),
+  ]);
+  card.append(table(["Table", "Columns", "Primary key", "Movement", "Status"], rows));
+  if (assessment.truncated.tables) {
+    card.append(
+      el(
+        "p",
+        "muted small",
+        "Showing the first 300 tables; migration-report.md lists all of them.",
+      ),
+    );
+  }
+  return card;
+}
+
+function movementCard(assessment: DatabaseAssessment): HTMLElement {
+  const card = section("Data movement", assessment.movement.summary);
+  card.append(
+    el(
+      "p",
+      "muted small",
+      `${assessment.movement.tables} tables automatic, ${assessment.movement.manualTables} manual`,
+    ),
+  );
+  return card;
+}
+
+function renderDatabaseOverview(view: DatabaseData): HTMLElement[] {
+  const assessment = databaseAssessmentOf(view);
+  const nodes: (HTMLElement | null)[] = [
+    readinessCard(view),
+    databaseMetricsCard(assessment),
+    databaseAttentionCard(assessment),
+    typeCoverageCard(assessment),
+    objectCoverageCard(assessment),
+    proceduralCard(assessment),
+    databaseTablesCard(assessment),
+    movementCard(assessment),
+    questionsCard(assessment.questions),
+    risksCard(assessment.risks),
   ];
   return nodes.filter((node): node is HTMLElement => node !== null);
 }
@@ -663,7 +816,7 @@ function nodeTable(flow: FlowGraph, onSelect: (name: string) => void): HTMLEleme
 }
 
 function renderFlows(view: WorkbenchData): HTMLElement[] {
-  const flows = view.kind === "assessment" ? [] : view.bundle.flows;
+  const flows = view.kind === "bundle" ? view.bundle.flows : [];
   if (flows.length === 0) {
     return [
       section(
@@ -847,29 +1000,7 @@ function bundleDetails(bundle: BundleSummary): HTMLElement[] {
     nodes.push(card);
   }
 
-  const filesCard = section(
-    "Generated files",
-    "Read any text file below; it stays on this server.",
-  );
-  if (loadingFile) {
-    filesCard.append(el("p", "status", `Loading ${loadingFile}…`));
-  }
-  if (fileError) {
-    filesCard.append(el("p", "status error", fileError));
-  }
-  if (openedFile) {
-    filesCard.append(fileViewer(openedFile));
-  }
-  const rows: Cell[][] = bundle.files.map((file) => {
-    const button = el("button", "link-button", file.path);
-    button.type = "button";
-    button.addEventListener("click", () => {
-      void openFile(file.path);
-    });
-    return [button, fileKindLabel(file.kind), formatBytes(file.bytes), file.sha256.slice(0, 16)];
-  });
-  filesCard.append(table(["Path", "Kind", "Size", "SHA-256"], rows));
-  nodes.push(filesCard);
+  nodes.push(generatedFilesCard(bundle.files));
 
   if (bundle.warnings.length > 0) {
     const card = section("Warnings");
@@ -885,8 +1016,113 @@ function bundleDetails(bundle: BundleSummary): HTMLElement[] {
     nodes.push(card);
   }
 
-  const assessment = bundle.assessment;
-  const risks = risksCard(assessment);
+  const risks = risksCard(bundle.assessment.risks);
+  if (risks) nodes.push(risks);
+  return nodes;
+}
+
+function generatedFilesCard(
+  files: { path: string; bytes: number; sha256: string; kind: BundleFile["kind"] }[],
+): HTMLElement {
+  const filesCard = section(
+    "Generated files",
+    "Read any text file below; it stays on this server.",
+  );
+  if (loadingFile) {
+    filesCard.append(el("p", "status", `Loading ${loadingFile}…`));
+  }
+  if (fileError) {
+    filesCard.append(el("p", "status error", fileError));
+  }
+  if (openedFile) {
+    filesCard.append(fileViewer(openedFile));
+  }
+  const rows: Cell[][] = files.map((file) => {
+    const button = el("button", "link-button", file.path);
+    button.type = "button";
+    button.addEventListener("click", () => {
+      void openFile(file.path);
+    });
+    return [button, fileKindLabel(file.kind), formatBytes(file.bytes), file.sha256.slice(0, 16)];
+  });
+  filesCard.append(table(["Path", "Kind", "Size", "SHA-256"], rows));
+  return filesCard;
+}
+
+function databaseBundleDetails(bundle: DatabaseBundleSummary): HTMLElement[] {
+  const nodes: HTMLElement[] = [];
+  const dl = section(
+    "Bundle",
+    `Generated with ${bundle.generated_with}. The archive is deterministic.`,
+  );
+  const facts = el("div", "facts");
+  facts.append(
+    el("span", "fact", `Bundle ${bundle.bundle_id}`),
+    el("span", "fact", `${bundle.files.length} files`),
+    el("span", "fact", `${bundle.artifacts.length} artifacts`),
+    el("span", "fact", `${bundle.state_machines.length} state machines`),
+    el("span", "fact", `${bundle.secrets.length} secrets`),
+  );
+  dl.append(facts);
+  const url = safeDownloadUrl(bundle.download_url);
+  const actions = el("div", "actions");
+  if (url) {
+    const link = el("a", "btn primary", "Download ZIP");
+    link.href = url;
+    link.target = "_blank";
+    link.rel = "noopener noreferrer";
+    actions.append(link);
+  }
+  actions.append(actionButton("Ask about this bundle", bundlePrompt()));
+  dl.append(actions);
+  nodes.push(dl);
+
+  if (bundle.artifacts.length > 0) {
+    const card = section("Artifacts");
+    const rows = bundle.artifacts.map((artifact) => [
+      artifact.path,
+      artifact.kind,
+      artifact.description,
+    ]);
+    card.append(table(["Path", "Kind", "Purpose"], rows));
+    nodes.push(card);
+  }
+
+  if (bundle.state_machines.length > 0) {
+    const card = section("Step Functions");
+    const rows = bundle.state_machines.map((machine) => [
+      machine.name,
+      machine.definition_path,
+      machine.purpose,
+    ]);
+    card.append(table(["State machine", "Definition", "Purpose"], rows));
+    nodes.push(card);
+  }
+
+  if (bundle.secrets.length > 0) {
+    const card = section("Secrets", "Fill these after deployment; no credentials are included.");
+    const rows = bundle.secrets.map((secret) => [secret.name, secret.purpose]);
+    card.append(table(["Secret", "Purpose"], rows));
+    nodes.push(card);
+  }
+
+  nodes.push(generatedFilesCard(bundle.files));
+
+  if (bundle.warnings.length > 0) {
+    const card = section("Warnings");
+    card.append(bulletList(bundle.warnings));
+    nodes.push(card);
+  }
+
+  if (bundle.next_steps.length > 0) {
+    const card = section("Next steps");
+    const list = el("ol", "steps");
+    for (const step of bundle.next_steps) list.append(el("li", undefined, step));
+    card.append(list);
+    nodes.push(card);
+  }
+
+  const risks = risksCard(bundle.assessment.risks);
   if (risks) nodes.push(risks);
   return nodes;
 }
@@ -934,7 +1170,7 @@ async function copyFile(file: MigrationFileResult, button: HTMLButtonElement): P
 let renderSeq = 0;
 
 async function openFile(path: string): Promise<void> {
-  if (!data || data.kind !== "bundle") return;
+  if (!data || (data.kind !== "bundle" && data.kind !== "database-bundle")) return;
   const seq = ++renderSeq;
   openedFile = null;
   fileError = null;
@@ -972,16 +1208,20 @@ async function openFile(path: string): Promise<void> {
 
 function renderPanel(): void {
   if (!data) return;
-  if (activeTab === "bundle" && data.kind !== "bundle") activeTab = "overview";
+  const bundleReady = data.kind === "bundle" || data.kind === "database-bundle";
+  if (activeTab === "bundle" && !bundleReady) activeTab = "overview";
+  if (activeTab === "flows" && isDatabase(data)) activeTab = "overview";
   let nodes: HTMLElement[];
   if (activeTab === "overview") {
-    nodes = renderOverview(data);
+    nodes = isDatabase(data) ? renderDatabaseOverview(data) : renderOverview(data);
   } else if (activeTab === "flows") {
     nodes = renderFlows(data);
   } else if (data.kind === "bundle") {
     nodes = bundleDetails(data.bundle);
+  } else if (data.kind === "database-bundle") {
+    nodes = databaseBundleDetails(data.bundle);
   } else {
-    nodes = renderOverview(data);
+    nodes = isDatabase(data) ? renderDatabaseOverview(data) : renderOverview(data);
   }
   panel.replaceChildren(...nodes);
   root?.toggleAttribute("aria-busy", loading);
@@ -996,10 +1236,14 @@ function render(next: WorkbenchData): void {
   subtitle.textContent =
     next.kind === "assessment"
       ? `Pentaho migration assessment · ${next.assessment.totals.files} files · ${next.assessment.totals.steps} steps`
-      : `AWS migration bundle ${next.bundle.bundle_id} · ${next.bundle.generated_with}`;
+      : next.kind === "bundle"
+        ? `AWS migration bundle ${next.bundle.bundle_id} · ${next.bundle.generated_with}`
+        : next.kind === "database-assessment"
+          ? `${ENGINE_LABELS[next.assessment.sourceEngine]} to ${TARGET_LABELS[next.assessment.targetEngine]} assessment · ${next.assessment.totals.tables} tables · ${next.assessment.totals.procedural} procedural objects`
+          : `AWS modernization bundle ${next.bundle.bundle_id} · ${next.bundle.generated_with}`;
   readinessPill.textContent = `${state.score}/100 · ${readinessLabel(state.level)}`;
   readinessPill.className = `pill readiness-${state.level}`;
-  activeTab = next.kind === "bundle" ? "bundle" : "overview";
+  activeTab = next.kind === "bundle" || next.kind === "database-bundle" ? "bundle" : "overview";
   selectedFlowIndex = 0;
   selectedNode = null;
   openedFile = null;
