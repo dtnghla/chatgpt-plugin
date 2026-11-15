@@ -1,0 +1,9 @@
+.LOGON tdprod/etl_user,T3raPass!;
+DATABASE sales;
+INSERT INTO sales.orders SELECT * FROM staging.orders_raw;
+.IF ERRORCODE <> 0 THEN .GOTO FAILED;
+.EXPORT REPORT FILE = /tmp/orders.txt;
+SELECT COUNT(*) FROM sales.orders;
+.EXPORT RESET;
+.LABEL FAILED
+.QUIT;

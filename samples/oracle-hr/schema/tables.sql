@@ -1,0 +1,10 @@
+CREATE SEQUENCE hr.employees_seq START WITH 1000 INCREMENT BY 1;
+CREATE TABLE hr.departments (department_id NUMBER(4) NOT NULL, department_name VARCHAR2(30 CHAR) NOT NULL, location_id NUMBER(4), CONSTRAINT dept_pk PRIMARY KEY (department_id));
+CREATE TABLE hr.employees (employee_id NUMBER(6) NOT NULL, first_name VARCHAR2(20), last_name VARCHAR2(25) NOT NULL, email VARCHAR2(25) NOT NULL, hire_date DATE DEFAULT SYSDATE NOT NULL, salary NUMBER(8,2), commission_pct NUMBER(2,2), department_id NUMBER(4), resume CLOB, photo BLOB, CONSTRAINT emp_pk PRIMARY KEY (employee_id), CONSTRAINT emp_email_uk UNIQUE (email), CONSTRAINT emp_dept_fk FOREIGN KEY (department_id) REFERENCES hr.departments (department_id)) TABLESPACE users;
+CREATE TABLE hr.job_history (employee_id NUMBER(6) NOT NULL, start_date DATE NOT NULL, end_date DATE NOT NULL, job_id VARCHAR2(10) NOT NULL, updated_at TIMESTAMP(6) WITH LOCAL TIME ZONE, notes NUMBER) PARTITION BY RANGE (start_date) (PARTITION p2025 VALUES LESS THAN (DATE '2026-01-01'), PARTITION pmax VALUES LESS THAN (MAXVALUE));
+CREATE TABLE hr.locations (location_id NUMBER(4) PRIMARY KEY, city VARCHAR2(30), geo SDO_GEOMETRY, attachment BFILE);
+CREATE INDEX hr.emp_name_ix ON hr.employees (last_name, first_name);
+CREATE BITMAP INDEX hr.emp_dept_bix ON hr.employees (department_id);
+CREATE USER app_reader IDENTIFIED BY "S3cretPw!";
+CREATE OR REPLACE VIEW hr.emp_details_v AS SELECT e.employee_id, NVL(e.commission_pct, 0) AS commission_pct, SYSDATE AS as_of FROM hr.employees e;
+CREATE OR REPLACE VIEW hr.dept_summary_v AS SELECT d.department_name, DECODE(COUNT(e.employee_id), 0, 'empty', 'staffed') AS status FROM hr.departments d, hr.employees e WHERE d.department_id = e.department_id(+) GROUP BY d.department_name;

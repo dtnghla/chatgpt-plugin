@@ -7,10 +7,13 @@ import type { GeneratedBundleOptions, MigrationBundle } from "../src/migration/t
 import { parsePentahoProject } from "../src/pentaho/parse.js";
 import { GENERATOR_VERSION } from "../src/server.js";
 
-export const FIXTURE_ROOT = path.resolve(import.meta.dirname, "fixtures", "retail");
+export function fixtureRoot(name = "retail"): string {
+  return path.resolve(import.meta.dirname, "fixtures", name);
+}
 
-export function fixtureFiles(): InputFile[] {
+export function fixtureFiles(name = "retail"): InputFile[] {
   const files: InputFile[] = [];
+  const root = fixtureRoot(name);
   const visit = (directory: string) => {
     for (const entry of fs
       .readdirSync(directory, { withFileTypes: true })
@@ -19,18 +22,14 @@ export function fixtureFiles(): InputFile[] {
       if (entry.isDirectory()) visit(full);
       else if (entry.isFile()) {
         files.push({
-          path: path.relative(FIXTURE_ROOT, full).replaceAll("\\", "/"),
+          path: path.relative(root, full).replaceAll("\\", "/"),
           data: fs.readFileSync(full),
         });
       }
     }
   };
-  visit(FIXTURE_ROOT);
+  visit(root);
   return files;
-}
-
-export function fixtureText(relativePath: string): string {
-  return fs.readFileSync(path.join(FIXTURE_ROOT, relativePath), "utf8");
 }
 
 export const RETAIL_OPTIONS: GeneratedBundleOptions = {
@@ -53,15 +52,15 @@ export function b64(data: Uint8Array | string): string {
   return Buffer.from(data).toString("base64");
 }
 
-export function inlineFixtureFiles(): { name: string; content: string }[] {
-  return fixtureFiles().map((file) => ({
+export function inlineFixtureFiles(name = "retail"): { name: string; content: string }[] {
+  return fixtureFiles(name).map((file) => ({
     name: file.path,
     content: new TextDecoder("utf-8", { fatal: true }).decode(file.data),
   }));
 }
 
-export function fixtureZipBase64(): string {
+export function fixtureZipBase64(name = "retail"): string {
   const entries: Record<string, Uint8Array> = {};
-  for (const file of fixtureFiles()) entries[file.path] = file.data;
+  for (const file of fixtureFiles(name)) entries[file.path] = file.data;
   return b64(zipSync(entries, { level: 6, mtime: Date.UTC(2000, 0, 1, 12, 0, 0) }));
 }
