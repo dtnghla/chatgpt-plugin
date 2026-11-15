@@ -96,7 +96,7 @@ describe("licenseFromHeader", () => {
 
 describe("limit messages", () => {
   it("lists both over-limit dimensions and the upgrade URL", () => {
-    const message = projectLimitMessage(settings(), 7, 38);
+    const message = projectLimitMessage(settings(), 7, 38, "workflow steps");
     expect(message).toContain("7 files (free tier limit: 2)");
     expect(message).toContain("38 workflow steps (free tier limit: 10)");
     expect(message).toContain("license_key argument");
@@ -111,7 +111,7 @@ describe("limit messages", () => {
 
   it("omits the upgrade line when no URL is configured", () => {
     const noUrl = settings({ upgradeUrl: undefined });
-    expect(projectLimitMessage(noUrl, 7, 1)).not.toContain("Upgrade to Pro");
+    expect(projectLimitMessage(noUrl, 7, 1, "workflow steps")).not.toContain("Upgrade to Pro");
     expect(invalidKeyMessage(noUrl)).not.toContain("To buy a license");
   });
 });

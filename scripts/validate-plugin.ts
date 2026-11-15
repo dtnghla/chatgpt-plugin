@@ -49,7 +49,7 @@ interface TextRule {
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DEFAULT_REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
-const DEFAULT_PLUGIN_DIR = path.join(DEFAULT_REPO_ROOT, "plugins", "pentaho-to-aws");
+const DEFAULT_PLUGIN_DIR = path.join(DEFAULT_REPO_ROOT, "plugins", "aws-data-modernizer");
 const SCHEMA_DIR = path.join(DEFAULT_REPO_ROOT, "schemas", "agent-plugins", "1.0.0");
 
 const CATEGORIES = [

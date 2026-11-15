@@ -8,7 +8,7 @@ import { IngestError } from "./types.js";
 
 const REDIRECT_STATUSES = new Set([301, 302, 303, 307, 308]);
 const MAX_REDIRECTS = 3;
-const USER_AGENT = "pentaho-to-aws/1.0";
+const USER_AGENT = "aws-data-modernizer/1.0";
 
 export interface DownloadOptions {
   allowlist: string[];

@@ -13,7 +13,9 @@ async function main(): Promise<void> {
 
   const { app, close } = createApp(config, { loadWidgetHtml: cachedWidgetLoader() }, logger);
   const server = app.listen(config.port, config.host, () => {
-    logger.info(`pentaho-to-aws MCP server listening on http://${config.host}:${config.port}/mcp`);
+    logger.info(
+      `aws-data-modernizer MCP server listening on http://${config.host}:${config.port}/mcp`,
+    );
   });
 
   let shuttingDown = false;

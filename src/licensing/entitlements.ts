@@ -1,9 +1,14 @@
-import { type LicenseVerification, type VerifiedLicense, verifyLicenseKey } from "./license.js";
+import {
+  LICENSE_HEADER,
+  type LicenseVerification,
+  type VerifiedLicense,
+  verifyLicenseKey,
+} from "./license.js";
 
 export interface FreeLimits {
   /** Maximum project files (after archive extraction) a free-tier call may contain. */
   maxFiles: number;
-  /** Maximum workflow steps (transformation steps plus job entries) per free-tier call. */
+  /** Maximum units per free-tier call: Pentaho workflow steps or database schema objects. */
   maxSteps: number;
   /** Bundle generations allowed per free tier per rolling 24 hours. */
   dailyBundles: number;
@@ -94,15 +99,16 @@ export function invalidKeyMessage(settings: LicensingSettings): string {
 export function projectLimitMessage(
   settings: LicensingSettings,
   files: number,
-  steps: number,
+  units: number,
+  unitLabel: string,
 ): string {
   const { maxFiles, maxSteps } = settings.free;
   const parts: string[] = [];
   if (files > maxFiles) parts.push(`${files} files (free tier limit: ${maxFiles})`);
-  if (steps > maxSteps) parts.push(`${steps} workflow steps (free tier limit: ${maxSteps})`);
+  if (units > maxSteps) parts.push(`${units} ${unitLabel} (free tier limit: ${maxSteps})`);
   return [
     `This project exceeds the free tier: ${parts.join(" and ")}.`,
-    "Pass a Pro license key with the license_key argument (or the x-pentaho-license-key header) to analyze projects of any size.",
+    `Pass a Pro license key with the license_key argument (or the ${LICENSE_HEADER} header) to analyze projects of any size.`,
     upgradeSuffix(settings),
   ].join("\n");
 }
@@ -111,7 +117,7 @@ export function quotaMessage(settings: LicensingSettings, used: number): string 
   const { dailyBundles } = settings.free;
   return [
     `Free tier bundle generation is limited to ${dailyBundles} per rolling 24 hours (${used} used).`,
-    "Pass a Pro license key with the license_key argument (or the x-pentaho-license-key header) for unlimited generations, or try again after the window frees up.",
+    `Pass a Pro license key with the license_key argument (or the ${LICENSE_HEADER} header) for unlimited generations, or try again after the window frees up.`,
     upgradeSuffix(settings),
   ].join("\n");
 }

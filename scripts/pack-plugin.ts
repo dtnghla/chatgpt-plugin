@@ -5,8 +5,8 @@ import { zipSync } from "fflate";
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url));
 const REPO_ROOT = path.resolve(SCRIPT_DIR, "..");
-const PLUGIN_DIR = path.join(REPO_ROOT, "plugins", "pentaho-to-aws");
-const OUTPUT = path.join(REPO_ROOT, "dist", "pentaho-to-aws-plugin.zip");
+const PLUGIN_DIR = path.join(REPO_ROOT, "plugins", "aws-data-modernizer");
+const OUTPUT = path.join(REPO_ROOT, "dist", "aws-data-modernizer-plugin.zip");
 
 /** Deterministic timestamp (2000-01-01) so rebuilds produce identical ZIPs. */
 const ZIP_MTIME = Date.UTC(2000, 0, 1, 12, 0, 0);

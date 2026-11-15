@@ -34,7 +34,7 @@ describe("workbench widget", () => {
   it.skipIf(!BUILT)("serves the built single-file widget", async () => {
     const html = await readWidgetHtml();
     expect(html).toBe(fs.readFileSync(DIST, "utf8"));
-    expect(html).toContain("<title>Pentaho migration workbench</title>");
+    expect(html).toContain("<title>Data Modernizer workbench</title>");
     expect(html.length).toBeGreaterThan(100_000);
     expect(html.match(/<\/html>/gi)).toHaveLength(1);
     expect(html).not.toMatch(/<script\b[^>]*\bsrc=/i);

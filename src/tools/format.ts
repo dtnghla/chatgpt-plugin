@@ -55,7 +55,7 @@ export function formatAssessment(assessment: ProjectAssessment): string {
     for (const question of assessment.questions.slice(0, 5)) lines.push(`- ${question}`);
   }
   lines.push(
-    "Call generate_aws_migration with the same files to write the Glue scripts, Step Functions definitions and CloudFormation template.",
+    "Call generate_pentaho_migration with the same files to write the Glue scripts, Step Functions definitions and CloudFormation template.",
   );
   return lines.join("\n");
 }

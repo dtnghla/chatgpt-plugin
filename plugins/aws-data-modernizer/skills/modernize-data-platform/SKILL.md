@@ -1,5 +1,5 @@
 ---
-name: migrate-pentaho
+name: modernize-data-platform
 description: Assess Pentaho Data Integration projects and generate an AWS migration bundle. Use when the user uploads .ktr or .kjb files, asks how to move Pentaho ETL to AWS Glue, wants a readiness assessment, or asks for Step Functions, EventBridge schedules or CloudFormation generated from PDI.
 ---
 

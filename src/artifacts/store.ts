@@ -1,6 +1,19 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Config } from "../config.js";
-import type { MigrationBundle } from "../migration/types.js";
+import type { BundleFile } from "../migration/types.js";
+
+/**
+ * Workload-agnostic shape every stored bundle shares. Pentaho migration
+ * bundles carry extra fields, which still serialize because the S3 metadata
+ * spreads the bundle minus the ZIP.
+ */
+export interface ArtifactBundle {
+  id: string;
+  projectName: string;
+  zip: Uint8Array;
+  files: BundleFile[];
+  contents: Record<string, string>;
+}
 
 export interface StoredDownload {
   data: Uint8Array;
@@ -8,8 +21,8 @@ export interface StoredDownload {
 }
 
 export interface ArtifactBackend {
-  save(bundle: MigrationBundle, expiresAt: number): Promise<void>;
-  load(id: string, now: number): Promise<MigrationBundle | undefined>;
+  save(bundle: ArtifactBundle, expiresAt: number): Promise<void>;
+  load(id: string, now: number): Promise<ArtifactBundle | undefined>;
   download(id: string, now: number): Promise<StoredDownload | undefined>;
   cleanup?(now: number): void;
   link?(id: string, expiresAt: number): Promise<string | undefined>;
@@ -17,14 +30,14 @@ export interface ArtifactBackend {
 }
 
 function cloneWithoutZip(
-  bundle: MigrationBundle,
-): Omit<MigrationBundle, "zip"> & { zip?: Uint8Array } {
+  bundle: ArtifactBundle,
+): Omit<ArtifactBundle, "zip"> & { zip?: Uint8Array } {
   const { zip: _zip, ...rest } = bundle;
   return rest;
 }
 
 export class MemoryArtifactBackend implements ArtifactBackend {
-  private readonly entries = new Map<string, { bundle: MigrationBundle; expiresAt: number }>();
+  private readonly entries = new Map<string, { bundle: ArtifactBundle; expiresAt: number }>();
 
   private readonly maxEntries: number;
 
@@ -32,7 +45,7 @@ export class MemoryArtifactBackend implements ArtifactBackend {
     this.maxEntries = maxEntries;
   }
 
-  async save(bundle: MigrationBundle, expiresAt: number): Promise<void> {
+  async save(bundle: ArtifactBundle, expiresAt: number): Promise<void> {
     this.entries.set(bundle.id, { bundle, expiresAt });
     while (this.entries.size > this.maxEntries) {
       const oldest = this.entries.keys().next().value as string | undefined;
@@ -41,7 +54,7 @@ export class MemoryArtifactBackend implements ArtifactBackend {
     }
   }
 
-  async load(id: string, now: number): Promise<MigrationBundle | undefined> {
+  async load(id: string, now: number): Promise<ArtifactBundle | undefined> {
     const entry = this.entries.get(id);
     if (!entry) return undefined;
     if (entry.expiresAt <= now) {
@@ -66,7 +79,7 @@ export class MemoryArtifactBackend implements ArtifactBackend {
 
 interface S3Metadata {
   expires_at: number;
-  bundle: Omit<MigrationBundle, "zip">;
+  bundle: Omit<ArtifactBundle, "zip">;
 }
 
 export class S3ArtifactBackend implements ArtifactBackend {
@@ -86,7 +99,7 @@ export class S3ArtifactBackend implements ArtifactBackend {
     return `${this.prefix}/${id}.${suffix}`;
   }
 
-  async save(bundle: MigrationBundle, expiresAt: number): Promise<void> {
+  async save(bundle: ArtifactBundle, expiresAt: number): Promise<void> {
     const { PutObjectCommand } = await import("@aws-sdk/client-s3");
     const client = await this.client();
     const metadata: S3Metadata = { expires_at: expiresAt, bundle: cloneWithoutZip(bundle) };
@@ -111,7 +124,7 @@ export class S3ArtifactBackend implements ArtifactBackend {
     );
   }
 
-  async load(id: string, now: number): Promise<MigrationBundle | undefined> {
+  async load(id: string, now: number): Promise<ArtifactBundle | undefined> {
     const { GetObjectCommand } = await import("@aws-sdk/client-s3");
     const client = await this.client();
     try {
@@ -122,7 +135,7 @@ export class S3ArtifactBackend implements ArtifactBackend {
       if (!raw) return undefined;
       const metadata = JSON.parse(raw) as S3Metadata;
       if (metadata.expires_at <= now) return undefined;
-      return { ...metadata.bundle, zip: new Uint8Array() } as MigrationBundle;
+      return { ...metadata.bundle, zip: new Uint8Array() } as ArtifactBundle;
     } catch (error) {
       const name = error instanceof Error ? error.name : "";
       if (name === "NoSuchKey" || name === "NotFound") return undefined;
@@ -216,7 +229,7 @@ export class ArtifactService {
     });
   }
 
-  async save(bundle: MigrationBundle): Promise<{ url?: string; expiresAt: number }> {
+  async save(bundle: ArtifactBundle): Promise<{ url?: string; expiresAt: number }> {
     const expiresAt = Date.now() + this.ttlSeconds * 1000;
     await this.backend.save(bundle, expiresAt);
     if (this.backend.link) {
@@ -233,7 +246,7 @@ export class ArtifactService {
     return { expiresAt };
   }
 
-  async load(id: string): Promise<MigrationBundle | undefined> {
+  async load(id: string): Promise<ArtifactBundle | undefined> {
     if (!/^[a-f0-9]{16}$/.test(id)) return undefined;
     return await this.backend.load(id, Date.now());
   }

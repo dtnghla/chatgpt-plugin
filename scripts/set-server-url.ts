@@ -3,9 +3,9 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { isLoopbackHost } from "./validate-plugin.js";
 
-const PLUGIN_DIR = "plugins/pentaho-to-aws";
+const PLUGIN_DIR = "plugins/aws-data-modernizer";
 const MCP_JSON = `${PLUGIN_DIR}/mcp.json`;
-const AGENT_YAML = `${PLUGIN_DIR}/skills/migrate-pentaho/agents/openai.yaml`;
+const AGENT_YAML = `${PLUGIN_DIR}/skills/modernize-data-platform/agents/openai.yaml`;
 const YAML_URL_LINE = /^(\s*(?:-\s+)?url:\s*)(["']?)([^"'\s#]*)(\2)(\s*(?:#.*)?)$/;
 
 export interface UrlChange {

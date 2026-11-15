@@ -1,6 +1,6 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
-  "name": "pentaho-to-aws",
+  "name": "aws-data-modernizer",
   "version": "1.0.0",
   "description": "Assesses Pentaho Data Integration jobs and transformations, maps every step, and generates a deployable AWS Glue, Step Functions and CloudFormation migration bundle.",
   "author": {

@@ -58,7 +58,7 @@ describe.each<Era>(["legacy", "modern"])("%s protocol era", (era) => {
     const { tools } = await client.listTools();
     expect(tools.map((tool) => tool.name).sort()).toEqual([
       "analyze_pentaho_project",
-      "generate_aws_migration",
+      "generate_pentaho_migration",
       "get_migration_file",
     ]);
     for (const tool of tools) {
@@ -72,7 +72,7 @@ describe.each<Era>(["legacy", "modern"])("%s protocol era", (era) => {
       expect(tool.outputSchema, tool.name).toBeDefined();
     }
     const analyze = tools.find((tool) => tool.name === "analyze_pentaho_project");
-    const generate = tools.find((tool) => tool.name === "generate_aws_migration");
+    const generate = tools.find((tool) => tool.name === "generate_pentaho_migration");
     const read = tools.find((tool) => tool.name === "get_migration_file");
     for (const tool of [analyze, generate]) {
       expect(tool).toBeDefined();
@@ -94,9 +94,7 @@ describe.each<Era>(["legacy", "modern"])("%s protocol era", (era) => {
     const content = result.contents[0];
     expect(content?.uri).toBe(WORKBENCH_UI_URI);
     expect(content?.mimeType).toContain("text/html");
-    expect(content && "text" in content ? content.text : "").toContain(
-      "Pentaho migration workbench",
-    );
+    expect(content && "text" in content ? content.text : "").toContain("Data Modernizer workbench");
     const meta = (content?._meta ?? {}) as Record<string, unknown>;
     expect(meta.ui).toMatchObject({
       prefersBorder: true,
@@ -128,7 +126,7 @@ describe.each<Era>(["legacy", "modern"])("%s protocol era", (era) => {
     ]);
     const text = textOf(result);
     expect(text).toContain('Pentaho project "repo-dim"');
-    expect(text).toContain("Call generate_aws_migration");
+    expect(text).toContain("Call generate_pentaho_migration");
     expect(text).not.toContain("SuperSecret!23");
     expect(text).not.toContain("WAREHOUSE_JDBC");
   });
@@ -153,7 +151,7 @@ describe.each<Era>(["legacy", "modern"])("%s protocol era", (era) => {
       arguments: {},
     });
     expect(result.isError).toBe(true);
-    expect(textOf(result)).toContain("Provide at least one Pentaho file");
+    expect(textOf(result)).toContain("Provide at least one file");
   });
 
   it("returns a tool error for unusable inline content", async () => {
@@ -169,7 +167,7 @@ describe.each<Era>(["legacy", "modern"])("%s protocol era", (era) => {
 
   it("generates a bundle, exposes a signed download and reads files", async () => {
     const result = await client.callTool({
-      name: "generate_aws_migration",
+      name: "generate_pentaho_migration",
       arguments: {
         inline_files: inlineFixtureFiles(),
         project_name: "retail-mcp",
@@ -235,7 +233,7 @@ describe.each<Era>(["legacy", "modern"])("%s protocol era", (era) => {
     const generated = bundleSummarySchema.parse(
       (
         await client.callTool({
-          name: "generate_aws_migration",
+          name: "generate_pentaho_migration",
           arguments: { inline_files: inlineFixtureFiles(), project_name: "read-paths" },
         })
       ).structuredContent,
@@ -259,7 +257,7 @@ describe.each<Era>(["legacy", "modern"])("%s protocol era", (era) => {
     const generated = bundleSummarySchema.parse(
       (
         await client.callTool({
-          name: "generate_aws_migration",
+          name: "generate_pentaho_migration",
           arguments: { inline_files: inlineFixtureFiles(), project_name: "errors" },
         })
       ).structuredContent,

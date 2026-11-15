@@ -6,6 +6,7 @@ import { parse as parseYaml } from "yaml";
 import type { InputFile } from "../src/ingest/types.js";
 import { buildMigrationBundle } from "../src/migration/bundle.js";
 import { parsePentahoProject } from "../src/pentaho/parse.js";
+import { GENERATOR_VERSION } from "../src/server.js";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "..");
 const FIXTURE_ROOT = path.join(REPO_ROOT, "test", "fixtures", "retail");
@@ -116,7 +117,7 @@ function main(): number {
     pathMappings: [],
     stepOverrides: {},
     scheduleOverrides: {},
-    generatedWith: "pentaho-to-aws 1.0.0",
+    generatedWith: GENERATOR_VERSION,
   });
   const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pentaho-generated-"));
   const problems: string[] = [];

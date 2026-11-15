@@ -1,8 +1,8 @@
 {
-  "name": "pentaho-to-aws",
+  "name": "aws-data-modernizer",
   "version": "1.0.0",
   "private": true,
-  "description": "Pentaho to AWS: a ChatGPT/Codex plugin that assesses Pentaho Data Integration jobs and transformations and generates a deployable AWS migration bundle.",
+  "description": "Data Modernizer for AWS: a ChatGPT/Codex plugin that assesses Pentaho ETL projects and database, data warehouse and data lake DDL, and generates deployable AWS migration bundles.",
   "type": "module",
   "license": "MIT",
   "repository": {

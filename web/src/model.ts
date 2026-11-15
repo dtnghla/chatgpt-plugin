@@ -129,6 +129,10 @@ export function fileKindLabel(kind: BundleFile["kind"]): string {
       return "JSON";
     case "text":
       return "Text";
+    case "sql":
+      return "SQL";
+    case "shell":
+      return "Shell script";
   }
 }
 
@@ -306,7 +310,7 @@ export function filePrompt(result: MigrationFileResult): string {
 }
 
 export function generatePrompt(): string {
-  return "Generate the AWS migration bundle for this Pentaho project with generate_aws_migration, then summarize the readiness, manual steps and placeholder secrets.";
+  return "Generate the AWS migration bundle for this Pentaho project with generate_pentaho_migration, then summarize the readiness, manual steps and placeholder secrets.";
 }
 
 export function modelContextText(data: WorkbenchData, detail?: string): string {

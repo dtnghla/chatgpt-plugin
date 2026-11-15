@@ -185,7 +185,7 @@ export interface BundleFile {
   path: string;
   bytes: number;
   sha256: string;
-  kind: "python" | "asl" | "cloudformation" | "markdown" | "json" | "text";
+  kind: "python" | "asl" | "cloudformation" | "markdown" | "json" | "text" | "sql" | "shell";
 }
 
 export interface MigrationBundle {
@@ -195,6 +195,7 @@ export interface MigrationBundle {
   files: BundleFile[];
   /** UTF-8 text of every file in the bundle, keyed by path. */
   contents: Record<string, string>;
+  generatedWith: string;
   assessment: ProjectAssessment;
   jobs: GlueJobArtifact[];
   stateMachines: StateMachineArtifact[];

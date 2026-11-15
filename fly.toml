@@ -10,7 +10,7 @@
 # auto_stop_machines=false and min_machines_running=1 below are load-bearing.
 # Set ARTIFACT_STORE=s3 + ARTIFACT_BUCKET via fly secrets before scaling out.
 
-app = "pentaho-to-aws"
+app = "aws-data-modernizer"
 primary_region = "sin"
 
 [build]
@@ -21,8 +21,8 @@ primary_region = "sin"
   PORT = "3000"
   # Must list the public hostname(s) exactly; the server refuses to start
   # on a public bind without it. Update when you rename the app or add a domain.
-  ALLOWED_HOSTS = "pentaho-to-aws.fly.dev"
-  # Set after the hostname is final, e.g. PUBLIC_BASE_URL=https://pentaho-to-aws.fly.dev
+  ALLOWED_HOSTS = "aws-data-modernizer.fly.dev"
+  # Set after the hostname is final, e.g. PUBLIC_BASE_URL=https://aws-data-modernizer.fly.dev
   # (fly secrets set PUBLIC_BASE_URL=...), so generated ZIP links use it.
 
 [http_service]

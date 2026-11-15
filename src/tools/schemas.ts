@@ -26,21 +26,17 @@ export const inlineFileSchema = z.object({
     .describe("Base64-encoded file content. Use for binary files such as a ZIP archive."),
 });
 
-const filesField = z
-  .array(fileReferenceSchema)
-  .max(50)
-  .optional()
-  .describe(
-    "Pentaho files uploaded through the host's file picker. Provide .ktr, .kjb, kettle.properties, shared.xml, a repository export, or one ZIP archive.",
-  );
+const filesField = (description: string) =>
+  z.array(fileReferenceSchema).max(50).optional().describe(description);
 
-const inlineFilesField = z
-  .array(inlineFileSchema)
-  .max(50)
-  .optional()
-  .describe(
-    "Pentaho files pasted inline. Use this when the host cannot upload files. Do not include real passwords.",
-  );
+const inlineFilesField = (description: string) =>
+  z.array(inlineFileSchema).max(50).optional().describe(description);
+
+const PENTAHO_FILES_DESCRIPTION =
+  "Pentaho files uploaded through the host's file picker. Provide .ktr, .kjb, kettle.properties, shared.xml, a repository export, or one ZIP archive.";
+
+const PENTAHO_INLINE_FILES_DESCRIPTION =
+  "Pentaho files pasted inline. Use this when the host cannot upload files. Do not include real passwords.";
 
 const licenseKeyField = z
   .string()
@@ -53,8 +49,8 @@ const licenseKeyField = z
   );
 
 export const analyzeInputSchema = z.object({
-  files: filesField,
-  inline_files: inlineFilesField,
+  files: filesField(PENTAHO_FILES_DESCRIPTION),
+  inline_files: inlineFilesField(PENTAHO_INLINE_FILES_DESCRIPTION),
   project_name: z
     .string()
     .trim()
@@ -85,8 +81,8 @@ const pathMappingSchema = z.object({
 });
 
 export const generateInputSchema = z.object({
-  files: filesField,
-  inline_files: inlineFilesField,
+  files: filesField(PENTAHO_FILES_DESCRIPTION),
+  inline_files: inlineFilesField(PENTAHO_INLINE_FILES_DESCRIPTION),
   project_name: z.string().trim().min(1).max(80).optional(),
   glue_version: z
     .enum(["5.1", "6.0"])
@@ -131,22 +127,12 @@ export const getFileInputSchema = z.object({
   bundle_id: z
     .string()
     .regex(/^[a-f0-9]{16}$/)
-    .describe("The bundle_id returned by generate_aws_migration."),
+    .describe("The bundle_id returned by generate_pentaho_migration."),
   path: z
     .string()
     .min(1)
     .max(400)
     .describe("A path from the bundle's file list, for example migration-report.md."),
-});
-
-export const fileResultSchema = z.object({
-  bundle_id: z.string(),
-  path: z.string(),
-  kind: z.enum(["python", "asl", "cloudformation", "markdown", "json", "text"]),
-  bytes: z.number().int(),
-  sha256: z.string(),
-  content: z.string(),
-  truncated: z.boolean(),
 });
 
 const riskSchema: z.ZodType<ProjectAssessment["risks"][number]> = z.object({
@@ -286,11 +272,22 @@ const readinessSchema = z.object({
   blockers: z.array(z.string()),
 });
 
+const fileKindSchema = z.enum([
+  "python",
+  "asl",
+  "cloudformation",
+  "markdown",
+  "json",
+  "text",
+  "sql",
+  "shell",
+]);
+
 const bundleFileSchema: z.ZodType<BundleSummary["files"][number]> = z.object({
   path: z.string(),
   bytes: z.number().int(),
   sha256: z.string(),
-  kind: z.enum(["python", "asl", "cloudformation", "markdown", "json", "text"]),
+  kind: fileKindSchema,
 });
 
 const flowSchema: z.ZodType<BundleSummary["flows"][number]> = z.object({
@@ -385,7 +382,7 @@ export const bundleSummarySchema: z.ZodType<BundleSummary> = z.object({
 export const migrationFileSchema: z.ZodType<MigrationFileResult> = z.object({
   bundle_id: z.string(),
   path: z.string(),
-  kind: z.enum(["python", "asl", "cloudformation", "markdown", "json", "text"]),
+  kind: fileKindSchema,
   bytes: z.number().int(),
   sha256: z.string(),
   content: z.string(),

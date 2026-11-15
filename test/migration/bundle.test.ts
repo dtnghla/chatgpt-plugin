@@ -113,7 +113,7 @@ describe("buildMigrationBundle", () => {
       warnings: string[];
     }>(BUNDLE.contents["manifest.json"], "manifest.json");
     expect(manifest.bundle_format).toBe(1);
-    expect(manifest.generator).toBe("pentaho-to-aws 1.0.0");
+    expect(manifest.generator).toBe("aws-data-modernizer 1.0.0");
     expect(manifest.project).toBe("retail");
     expect(manifest.glue_version).toBe("6.0");
     expect(manifest.worker_type).toBe("G.1X");
@@ -430,7 +430,7 @@ describe("buildMigrationBundle", () => {
       project_name: "retail",
       download_url: "https://example.com/bundle.zip",
       download_expires_at: "2026-10-31T18:00:00.000Z",
-      generated_with: "pentaho-to-aws 1.0.0",
+      generated_with: "aws-data-modernizer 1.0.0",
       readiness: BUNDLE.assessment.readiness,
     });
     expect(summary.files).toHaveLength(BUNDLE.files.length);

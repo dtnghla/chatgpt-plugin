@@ -80,7 +80,7 @@ function truncated(value: string, max: number): string {
   return value.length > max ? `${value.slice(0, max - 1)}…` : value;
 }
 
-const app = new App({ name: "pentaho-to-aws", version: "1.0.0" });
+const app = new App({ name: "aws-data-modernizer", version: "1.0.0" });
 
 const root = document.getElementById("app");
 if (!root) throw new Error("Missing #app element");
@@ -97,8 +97,12 @@ let loading = false;
 let modelContext = "";
 
 const header = el("header", "top");
-const title = el("h1", "title", "Pentaho migration workbench");
-const subtitle = el("p", "subtitle", "Upload .ktr and .kjb files to assess an AWS migration.");
+const title = el("h1", "title", "Data Modernizer workbench");
+const subtitle = el(
+  "p",
+  "subtitle",
+  "Upload Pentaho projects or database DDL to assess an AWS modernization.",
+);
 const readinessPill = el("span", "pill");
 const titleRow = el("div", "title-row");
 titleRow.append(title, readinessPill);
@@ -158,7 +162,7 @@ function showLoading(): void {
   if (data) return;
   header.hidden = true;
   readinessPill.hidden = true;
-  panel.replaceChildren(el("p", "placeholder", "Reading the Pentaho project…"));
+  panel.replaceChildren(el("p", "placeholder", "Reading the uploaded project…"));
   setStatus("");
 }
 

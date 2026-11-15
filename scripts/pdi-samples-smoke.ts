@@ -4,6 +4,7 @@ import type { InputFile } from "../src/ingest/types.js";
 import { deriveProjectName } from "../src/migration/assessment.js";
 import { buildMigrationBundle } from "../src/migration/bundle.js";
 import { parsePentahoProject } from "../src/pentaho/parse.js";
+import { GENERATOR_VERSION } from "../src/server.js";
 
 const MAX_FILE_BYTES = 25 * 1024 * 1024;
 
@@ -64,7 +65,7 @@ function main(): number {
     pathMappings: [],
     stepOverrides: {},
     scheduleOverrides: {},
-    generatedWith: "pentaho-to-aws 1.0.0",
+    generatedWith: GENERATOR_VERSION,
   });
   const manual = bundle.assessment.unsupportedSteps.length;
   const partial = bundle.assessment.partialSteps.length;

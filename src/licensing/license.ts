@@ -117,4 +117,4 @@ export function verifyLicenseKey(key: string, secret: string): LicenseVerificati
 }
 
 /** HTTP header that carries a license key for hosts that support custom connection headers. */
-export const LICENSE_HEADER = "x-pentaho-license-key";
+export const LICENSE_HEADER = "x-modernizer-license-key";

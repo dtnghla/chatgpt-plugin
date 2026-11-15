@@ -6,14 +6,14 @@ import { parseServerUrl, setServerUrl } from "../../scripts/set-server-url.js";
 import { contrastRatio, isLoopbackHost, validatePlugin } from "../../scripts/validate-plugin.js";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "../..");
-const PLUGIN_DIR = path.join(REPO_ROOT, "plugins", "pentaho-to-aws");
+const PLUGIN_DIR = path.join(REPO_ROOT, "plugins", "aws-data-modernizer");
 
 async function copyPlugin(): Promise<{ root: string; plugin: string }> {
-  const root = await mkdtemp(path.join(os.tmpdir(), "pentaho-plugin-"));
-  await cp(path.join(PLUGIN_DIR), path.join(root, "plugins", "pentaho-to-aws"), {
+  const root = await mkdtemp(path.join(os.tmpdir(), "modernizer-plugin-"));
+  await cp(path.join(PLUGIN_DIR), path.join(root, "plugins", "aws-data-modernizer"), {
     recursive: true,
   });
-  return { root, plugin: path.join(root, "plugins", "pentaho-to-aws") };
+  return { root, plugin: path.join(root, "plugins", "aws-data-modernizer") };
 }
 
 describe("validate-plugin", () => {
@@ -51,7 +51,7 @@ describe("validate-plugin", () => {
       const mcp = JSON.parse(await readFile(mcpPath, "utf8")) as {
         mcpServers: Record<string, { url: string }>;
       };
-      const server = mcp.mcpServers["pentaho-to-aws"];
+      const server = mcp.mcpServers["aws-data-modernizer"];
       if (!server) throw new Error("fixture server missing");
       server.url = "http://mcp.example.com/mcp";
       await writeFile(mcpPath, `${JSON.stringify(mcp, null, 2)}\n`);
@@ -92,11 +92,14 @@ describe("set-server-url", () => {
       for (const change of changes) expect(change.to).toBe("https://mcp.example.com/mcp");
 
       const mcp = JSON.parse(
-        await readFile(path.join(root, "plugins/pentaho-to-aws/mcp.json"), "utf8"),
+        await readFile(path.join(root, "plugins/aws-data-modernizer/mcp.json"), "utf8"),
       ) as { mcpServers: Record<string, { url: string }> };
-      expect(mcp.mcpServers["pentaho-to-aws"]?.url).toBe("https://mcp.example.com/mcp");
+      expect(mcp.mcpServers["aws-data-modernizer"]?.url).toBe("https://mcp.example.com/mcp");
       const agent = await readFile(
-        path.join(root, "plugins/pentaho-to-aws/skills/migrate-pentaho/agents/openai.yaml"),
+        path.join(
+          root,
+          "plugins/aws-data-modernizer/skills/modernize-data-platform/agents/openai.yaml",
+        ),
         "utf8",
       );
       expect(agent).toContain('url: "https://mcp.example.com/mcp"');

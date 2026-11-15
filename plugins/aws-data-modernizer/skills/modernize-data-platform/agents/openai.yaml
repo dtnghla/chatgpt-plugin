@@ -6,7 +6,7 @@ interface:
 dependencies:
   tools:
     - type: "mcp"
-      value: "pentaho-to-aws"
+      value: "aws-data-modernizer"
       description: "Assess Pentaho projects and generate Glue, Step Functions and CloudFormation artifacts"
       transport: "streamable_http"
       url: "http://localhost:3000/mcp"

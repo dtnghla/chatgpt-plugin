@@ -1,5 +1,3 @@
-import { createHash } from "node:crypto";
-import { zipSync } from "fflate";
 import { generateCloudFormation } from "../convert/cloudformation.js";
 import { generateGlueScript } from "../convert/glue.js";
 import {
@@ -14,8 +12,8 @@ import { buildStateMachine } from "../convert/state-machine.js";
 import type { Job, PentahoProject, Transformation } from "../pentaho/types.js";
 import { assessProject, slugify } from "./assessment.js";
 import { buildFlows } from "./flow.js";
+import { kindForPath, packageFiles, sha256 } from "./package.js";
 import type {
-  BundleFile,
   BundleSummary,
   GeneratedBundleOptions,
   GlueJobArtifact,
@@ -26,13 +24,6 @@ import type {
 } from "./types.js";
 
 const DATA_BUCKET = "${DataBucket}";
-const FIXED_MTIME = Date.UTC(2000, 0, 1, 12, 0, 0);
-
-function sha256(data: Uint8Array | string): string {
-  return createHash("sha256")
-    .update(typeof data === "string" ? Buffer.from(data, "utf8") : data)
-    .digest("hex");
-}
 
 function uniqueName(project: string, value: string, used: Set<string>, max: number): string {
   const base = `${project}-${slugify(value, "item")}`.slice(0, max).replace(/-+$/g, "");
@@ -97,15 +88,6 @@ export function createPathMapper(
 
 function fileKey(file: string, name: string): string {
   return `${file}\u0000${name}`;
-}
-
-function kindForPath(path: string): BundleFile["kind"] {
-  if (path.endsWith(".py")) return "python";
-  if (path.startsWith("stepfunctions/")) return "asl";
-  if (path.startsWith("cloudformation/") || path.endsWith(".yaml")) return "cloudformation";
-  if (path.endsWith(".md")) return "markdown";
-  if (path.endsWith(".json")) return "json";
-  return "text";
 }
 
 function findTransformation(
@@ -421,24 +403,7 @@ export function buildMigrationBundle(
   };
   addFile("manifest.json", `${JSON.stringify(manifest, null, 2)}\n`);
 
-  const paths = [...fileText.keys()].sort();
-  const encoder = new TextEncoder();
-  const zipEntries: Record<string, Uint8Array> = {};
-  const files: BundleFile[] = paths.map((path) => {
-    const content = fileText.get(path) ?? "";
-    const bytes = encoder.encode(content);
-    zipEntries[path] = bytes;
-    return {
-      path,
-      bytes: bytes.byteLength,
-      sha256: sha256(content),
-      kind: kindForPath(path),
-    };
-  });
-  const zip = zipSync(zipEntries, { level: 6, mtime: FIXED_MTIME });
-  const id = sha256(zip).slice(0, 16);
-  const contents: Record<string, string> = {};
-  for (const path of paths) contents[path] = fileText.get(path) ?? "";
+  const { id, zip, files, contents } = packageFiles(fileText);
 
   return {
     id,
@@ -446,6 +411,7 @@ export function buildMigrationBundle(
     zip,
     files,
     contents,
+    generatedWith: options.generatedWith,
     assessment,
     jobs: glueJobs,
     stateMachines,
@@ -470,7 +436,7 @@ export function summarizeBundle(bundle: MigrationBundle, download?: DownloadLink
     project_name: bundle.projectName,
     download_url: download?.url,
     download_expires_at: download?.expiresAt,
-    generated_with: "pentaho-to-aws 1.0.0",
+    generated_with: bundle.generatedWith,
     totals: bundle.assessment.totals,
     readiness: bundle.assessment.readiness,
     files: bundle.files.map((file) => ({

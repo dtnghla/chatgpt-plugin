@@ -5,6 +5,7 @@ import type { InputFile } from "../src/ingest/types.js";
 import { buildMigrationBundle } from "../src/migration/bundle.js";
 import type { GeneratedBundleOptions, MigrationBundle } from "../src/migration/types.js";
 import { parsePentahoProject } from "../src/pentaho/parse.js";
+import { GENERATOR_VERSION } from "../src/server.js";
 
 export const FIXTURE_ROOT = path.resolve(import.meta.dirname, "fixtures", "retail");
 
@@ -41,7 +42,7 @@ export const RETAIL_OPTIONS: GeneratedBundleOptions = {
   pathMappings: [{ from: "/opt/retail/data", to: "s3://${DataBucket}/retail" }],
   stepOverrides: {},
   scheduleOverrides: {},
-  generatedWith: "pentaho-to-aws 1.0.0",
+  generatedWith: GENERATOR_VERSION,
 };
 
 export function retailBundle(): MigrationBundle {

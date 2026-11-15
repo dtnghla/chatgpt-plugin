@@ -19,7 +19,7 @@ async function connectWithLicenseHeader(url: URL, key: string): Promise<Client> 
   const client = new Client({ name: "test-client", version: "0.0.0" });
   await client.connect(
     new StreamableHTTPClientTransport(url, {
-      requestInit: { headers: { "x-pentaho-license-key": key } },
+      requestInit: { headers: { "x-modernizer-license-key": key } },
     }),
   );
   return client;
@@ -108,13 +108,13 @@ describe("enforced licensing", () => {
     const arguments_ = { inline_files: singleTransform };
     for (let index = 0; index < 2; index += 1) {
       const result = await client.callTool({
-        name: "generate_aws_migration",
+        name: "generate_pentaho_migration",
         arguments: arguments_,
       });
       expect(result.isError, `generation ${index + 1}`).toBeFalsy();
     }
     const exhausted = await client.callTool({
-      name: "generate_aws_migration",
+      name: "generate_pentaho_migration",
       arguments: arguments_,
     });
     expect(exhausted.isError).toBe(true);
@@ -122,7 +122,7 @@ describe("enforced licensing", () => {
     expect(textOf(exhausted)).toContain("https://buy.example.com/pro");
 
     const withKey = await client.callTool({
-      name: "generate_aws_migration",
+      name: "generate_pentaho_migration",
       arguments: { ...arguments_, license_key: proKey },
     });
     expect(withKey.isError).toBeFalsy();
@@ -172,7 +172,7 @@ describe("licensing disabled (default)", () => {
     );
     for (let index = 0; index < 5; index += 1) {
       const result = await client.callTool({
-        name: "generate_aws_migration",
+        name: "generate_pentaho_migration",
         arguments: { inline_files: singleTransform },
       });
       expect(result.isError, `generation ${index + 1}`).toBeFalsy();

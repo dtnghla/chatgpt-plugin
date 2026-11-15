@@ -44,6 +44,6 @@ jobs:
         with:
           context: .
           push: false
-          tags: pentaho-to-aws:ci
+          tags: aws-data-modernizer:ci
           cache-from: type=gha
           cache-to: type=gha,mode=max

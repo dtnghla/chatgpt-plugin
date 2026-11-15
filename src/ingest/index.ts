@@ -52,7 +52,7 @@ export async function readProjectInput(
   const limits = options.limits ?? DEFAULT_UPLOAD_LIMITS;
   if (references.length + inlineFiles.length === 0) {
     throw new IngestError(
-      "Provide at least one Pentaho file, ZIP archive or inline file. Attach .ktr/.kjb files or paste their XML in inline_files.",
+      "Provide at least one file, ZIP archive or inline file: Pentaho .ktr/.kjb files or database DDL exports such as .sql, .ddl or .hql.",
     );
   }
   if (references.length > 50) throw new IngestError("At most 50 uploaded files are allowed.");

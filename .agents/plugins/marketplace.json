@@ -1,14 +1,14 @@
 {
   "name": "chatgpt-plugin-local",
   "interface": {
-    "displayName": "Pentaho to AWS (local)"
+    "displayName": "Data Modernizer for AWS (local)"
   },
   "plugins": [
     {
-      "name": "pentaho-to-aws",
+      "name": "aws-data-modernizer",
       "source": {
         "source": "local",
-        "path": "./plugins/pentaho-to-aws"
+        "path": "./plugins/aws-data-modernizer"
       },
       "policy": {
         "installation": "AVAILABLE",

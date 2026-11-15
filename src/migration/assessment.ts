@@ -29,8 +29,7 @@ export function slugify(value: string, fallback = "pentaho-migration"): string {
   return slug || fallback;
 }
 
-function commonProjectDirectory(project: PentahoProject): string | undefined {
-  const paths = project.files.map((file) => file.path);
+export function commonProjectDirectory(paths: string[]): string | undefined {
   if (paths.length === 0) return undefined;
   const firstSegments = paths.map((file) => file.split("/")[0] ?? "");
   if (firstSegments.some((segment) => segment === "" || segment.includes("."))) {
@@ -42,7 +41,7 @@ function commonProjectDirectory(project: PentahoProject): string | undefined {
 
 export function deriveProjectName(project: PentahoProject, requested?: string): string {
   if (requested?.trim()) return slugify(requested);
-  const directory = commonProjectDirectory(project);
+  const directory = commonProjectDirectory(project.files.map((file) => file.path));
   if (directory) return slugify(directory);
   const first = project.transformations[0]?.name ?? project.jobs[0]?.name;
   return slugify(first ?? "pentaho-migration");
