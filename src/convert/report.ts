@@ -45,7 +45,10 @@ function cell(value: string | number | boolean | undefined): string {
     .replace(/\r?\n/g, " ");
 }
 
-function table(headers: string[], rows: (string | number | boolean | undefined)[][]): string {
+export function table(
+  headers: string[],
+  rows: (string | number | boolean | undefined)[][],
+): string {
   const header = `| ${headers.map(cell).join(" | ")} |`;
   const divider = `| ${headers.map(() => "---").join(" | ")} |`;
   return [header, divider, ...rows.map((row) => `| ${row.map(cell).join(" | ")} |`)].join("\n");

@@ -1,4 +1,7 @@
 import { formatBytes } from "../convert/report.js";
+import type { DatabaseBundleSummary } from "../database/bundle.js";
+import { ENGINE_LABELS, TARGET_LABELS } from "../database/labels.js";
+import type { DatabaseAssessment } from "../database/types.js";
 import type { BundleSummary, MigrationFileResult, ProjectAssessment } from "../migration/types.js";
 
 function plural(count: number, singular: string, pluralForm = `${singular}s`): string {
@@ -56,6 +59,83 @@ export function formatAssessment(assessment: ProjectAssessment): string {
   }
   lines.push(
     "Call generate_pentaho_migration with the same files to write the Glue scripts, Step Functions definitions and CloudFormation template.",
+  );
+  return lines.join("\n");
+}
+
+export function formatDatabaseAssessment(a: DatabaseAssessment): string {
+  const lines: string[] = [];
+  lines.push(
+    `${ENGINE_LABELS[a.sourceEngine]} schema "${a.projectName}" to ${TARGET_LABELS[a.targetEngine]}: readiness ${a.readiness.score}/100 (${a.readiness.level}).`,
+  );
+  if (a.engineDetection === "detected") {
+    lines.push("Source engine detected from the files; pass source_engine to override.");
+  }
+  lines.push(a.readiness.summary);
+  lines.push(
+    `${plural(a.totals.files, "file")}, ${plural(a.totals.tables, "table")}, ${plural(a.totals.columns, "column")}, ${plural(a.totals.views, "view")}, ${plural(a.totals.indexes, "index", "indexes")}, ${plural(a.totals.sequences, "sequence")}, ${plural(a.totals.procedural, "procedural object")}.`,
+  );
+  lines.push(
+    `Columns: ${a.totals.automaticColumns} automatic, ${a.totals.partialColumns} partial, ${a.totals.manualColumns} manual.`,
+  );
+  if (a.procedural.length > 0) {
+    const sample = a.procedural
+      .slice(0, 5)
+      .map((proc) => `${proc.name} (${proc.kind}, ${proc.complexity})`)
+      .join(", ");
+    lines.push(
+      `Procedural objects needing manual conversion: ${sample}${a.procedural.length > 5 ? ", ..." : ""}.`,
+    );
+  }
+  lines.push(`Data movement: ${a.movement.summary}`);
+  const risks = a.risks.filter((risk) => risk.severity !== "info").slice(0, 6);
+  if (risks.length > 0) {
+    lines.push("Top risks:");
+    for (const risk of risks) lines.push(`- [${risk.severity}] ${risk.message}`);
+  }
+  if (a.questions.length > 0) {
+    lines.push("Open questions:");
+    for (const question of a.questions.slice(0, 5)) lines.push(`- ${question}`);
+  }
+  lines.push(
+    "Call generate_database_migration with the same files to write the target DDL, data movement artifacts and CloudFormation template.",
+  );
+  return lines.join("\n");
+}
+
+export function formatDatabaseBundleSummary(s: DatabaseBundleSummary): string {
+  const lines: string[] = [];
+  lines.push(`Generated bundle ${s.bundle_id} for "${s.project_name}" (${s.generated_with}).`);
+  lines.push(`Readiness ${s.readiness.score}/100 (${s.readiness.level}). ${s.readiness.summary}`);
+  if (s.download_url) {
+    lines.push(
+      `ZIP download: ${s.download_url}${s.download_expires_at ? ` (expires ${s.download_expires_at})` : ""}`,
+    );
+  } else {
+    lines.push(
+      `No download link is configured. Read individual files with get_migration_file using bundle_id ${s.bundle_id}.`,
+    );
+  }
+  lines.push(`${plural(s.files.length, "generated file")}.`);
+  lines.push("Artifacts:");
+  for (const artifact of s.artifacts) {
+    lines.push(`- ${artifact.path}: ${artifact.description}`);
+  }
+  if (s.secrets.length > 0) {
+    lines.push("Secrets to fill after deployment:");
+    for (const secret of s.secrets) lines.push(`- ${secret.name}: ${secret.purpose}`);
+  }
+  const problems = s.warnings.slice(0, 8);
+  if (problems.length > 0) {
+    lines.push(`Warnings (${s.warnings.length}):`);
+    for (const warning of problems) lines.push(`- ${warning}`);
+  }
+  if (s.next_steps.length > 0) {
+    lines.push("Next steps:");
+    for (const step of s.next_steps) lines.push(`- ${step}`);
+  }
+  lines.push(
+    `Use get_migration_file with bundle_id ${s.bundle_id} to read migration-report.md, README.md or any generated SQL.`,
   );
   return lines.join("\n");
 }

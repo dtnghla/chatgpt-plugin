@@ -1203,6 +1203,7 @@ export function parseDatabaseProject(
   const indexes: IndexDef[] = [];
   const sequences: SequenceDef[] = [];
   const procedural: ProceduralObject[] = [];
+  const constraintStatements: SqlStatement[] = [];
   const temporaryTables: string[] = [];
   const unparsed: { file: string; line: number; snippet: string }[] = [];
   const recordedSchemas = new Set<string>();
@@ -1685,7 +1686,10 @@ export function parseDatabaseProject(
         continue;
       }
       if (/^ALTER\s+TABLE\b/i.test(sql)) {
-        if (tryParseAlterTable(stmt)) continue;
+        if (tryParseAlterTable(stmt)) {
+          constraintStatements.push(stmt);
+          continue;
+        }
         otherStatements++;
         continue;
       }
@@ -1741,6 +1745,7 @@ export function parseDatabaseProject(
     indexes,
     sequences,
     procedural,
+    constraintStatements,
     temporaryTables,
     schemaFallbackUsed: fallback.used,
     extensions,

@@ -1,6 +1,9 @@
 import fs from "node:fs";
 import path from "node:path";
 import { zipSync } from "fflate";
+import type { DatabaseBundle } from "../src/database/bundle.js";
+import { buildDatabaseBundle } from "../src/database/bundle.js";
+import { parseDatabaseProject } from "../src/database/parse.js";
 import type { InputFile } from "../src/ingest/types.js";
 import { buildMigrationBundle } from "../src/migration/bundle.js";
 import type { GeneratedBundleOptions, MigrationBundle } from "../src/migration/types.js";
@@ -46,6 +49,17 @@ export const RETAIL_OPTIONS: GeneratedBundleOptions = {
 
 export function retailBundle(): MigrationBundle {
   return buildMigrationBundle(parsePentahoProject(fixtureFiles()), { ...RETAIL_OPTIONS });
+}
+
+export type DatabaseFixtureName = "oracle-hr" | "teradata-sales" | "hive-lake";
+
+export function databaseBundle(name: DatabaseFixtureName): DatabaseBundle {
+  return buildDatabaseBundle(parseDatabaseProject(fixtureFiles(name)), {
+    projectName: name,
+    replicationType: "full-load-and-cdc",
+    dmsMaxCapacityUnits: 16,
+    generatedWith: GENERATOR_VERSION,
+  });
 }
 
 export function b64(data: Uint8Array | string): string {

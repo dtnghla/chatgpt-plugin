@@ -1,4 +1,6 @@
 import * as z from "zod/v4";
+import type { DatabaseBundleSummary } from "../database/bundle.js";
+import type { DatabaseAssessment } from "../database/types.js";
 import type { BundleSummary, MigrationFileResult, ProjectAssessment } from "../migration/types.js";
 
 export const fileReferenceSchema = z.object({
@@ -123,11 +125,60 @@ export const generateInputSchema = z.object({
   license_key: licenseKeyField,
 });
 
+export const databaseAnalyzeInputSchema = z.object({
+  files: filesField(
+    "Database, data warehouse or data lake DDL exports uploaded through the host's file picker: .sql, .ddl, .hql, .btq, .bteq, .pks, .pkb or .pls files, or one ZIP archive.",
+  ),
+  inline_files: inlineFilesField(
+    "DDL exports pasted inline. Use this when the host cannot upload files. Remove passwords from CREATE USER or .LOGON lines before pasting.",
+  ),
+  project_name: z
+    .string()
+    .trim()
+    .min(1)
+    .max(80)
+    .optional()
+    .describe("Name for the migration project. Derived from the file paths when omitted."),
+  source_engine: z
+    .enum(["oracle", "sqlserver", "mysql", "postgresql", "teradata", "netezza", "hive"])
+    .optional()
+    .describe("Source database engine. Detected from the files when omitted."),
+  default_schema: z
+    .string()
+    .trim()
+    .min(1)
+    .max(128)
+    .optional()
+    .describe(
+      "Schema that owns unqualified objects in the DDL. Used for generated names and DMS table mappings.",
+    ),
+  license_key: licenseKeyField,
+});
+
+export const databaseGenerateInputSchema = databaseAnalyzeInputSchema.extend({
+  replication_type: z
+    .enum(["full-load", "full-load-and-cdc"])
+    .default("full-load-and-cdc")
+    .describe(
+      "DMS Serverless replication type for Oracle, SQL Server, MySQL and PostgreSQL sources; ignored for other engines.",
+    ),
+  dms_max_capacity_units: z
+    .number()
+    .int()
+    .default(16)
+    .refine(
+      (v) => [1, 2, 4, 8, 16, 32, 64, 128, 192, 256, 384].includes(v),
+      "dms_max_capacity_units must be one of 1, 2, 4, 8, 16, 32, 64, 128, 192, 256 or 384.",
+    ),
+});
+
 export const getFileInputSchema = z.object({
   bundle_id: z
     .string()
     .regex(/^[a-f0-9]{16}$/)
-    .describe("The bundle_id returned by generate_pentaho_migration."),
+    .describe(
+      "The bundle_id returned by generate_pentaho_migration or generate_database_migration.",
+    ),
   path: z
     .string()
     .min(1)
@@ -387,4 +438,191 @@ export const migrationFileSchema: z.ZodType<MigrationFileResult> = z.object({
   sha256: z.string(),
   content: z.string(),
   truncated: z.boolean(),
+});
+
+const sourceEngineSchema = z.enum([
+  "oracle",
+  "sqlserver",
+  "mysql",
+  "postgresql",
+  "teradata",
+  "netezza",
+  "hive",
+]);
+const targetEngineSchema = z.enum([
+  "aurora-postgresql",
+  "aurora-mysql",
+  "redshift-serverless",
+  "athena-iceberg",
+]);
+const workloadClassSchema = z.enum(["database", "warehouse", "lake"]);
+const conversionStatusSchema = z.enum(["automatic", "partial", "manual"]);
+const objectKindSchema = z.enum([
+  "table",
+  "view",
+  "index",
+  "sequence",
+  "procedure",
+  "function",
+  "trigger",
+  "package",
+  "package_body",
+  "macro",
+  "type",
+  "bteq_script",
+]);
+
+const databaseReadinessSchema = z.object({
+  score: z.number().int(),
+  level: z.enum(["ready", "review", "blocked"]),
+  summary: z.string(),
+  blockers: z.array(z.string()),
+});
+
+const databaseTotalsSchema = z.object({
+  files: z.number().int(),
+  schemas: z.number().int(),
+  tables: z.number().int(),
+  columns: z.number().int(),
+  views: z.number().int(),
+  indexes: z.number().int(),
+  sequences: z.number().int(),
+  procedural: z.number().int(),
+  temporaryTables: z.number().int(),
+  unparsed: z.number().int(),
+  warnings: z.number().int(),
+  automaticColumns: z.number().int(),
+  partialColumns: z.number().int(),
+  manualColumns: z.number().int(),
+});
+
+export const databaseAssessmentSchema: z.ZodType<DatabaseAssessment> = z.object({
+  workload: z.literal("database"),
+  projectName: z.string(),
+  sourceEngine: sourceEngineSchema,
+  engineDetection: z.enum(["argument", "detected"]),
+  targetEngine: targetEngineSchema,
+  workloadClass: workloadClassSchema,
+  totals: databaseTotalsSchema,
+  files: z.array(
+    z.object({
+      path: z.string(),
+      bytes: z.number().int(),
+      sha256: z.string(),
+      statements: z.number().int(),
+    }),
+  ),
+  typeCoverage: z.array(
+    z.object({
+      sourceType: z.string(),
+      targetType: z.string(),
+      count: z.number().int(),
+      status: conversionStatusSchema,
+      caveat: z.string().optional(),
+    }),
+  ),
+  objectCoverage: z.array(
+    z.object({
+      kind: objectKindSchema,
+      count: z.number().int(),
+      automatic: z.number().int(),
+      partial: z.number().int(),
+      manual: z.number().int(),
+      conversion: z.string(),
+    }),
+  ),
+  attention: z.array(
+    z.object({
+      kind: z.union([objectKindSchema, z.literal("column")]),
+      name: z.string(),
+      file: z.string(),
+      line: z.number().int(),
+      status: z.enum(["partial", "manual"]),
+      reason: z.string(),
+    }),
+  ),
+  procedural: z.array(
+    z.object({
+      schema: z.string(),
+      name: z.string(),
+      kind: z.enum([
+        "procedure",
+        "function",
+        "trigger",
+        "package",
+        "package_body",
+        "macro",
+        "type",
+        "bteq_script",
+      ]),
+      file: z.string(),
+      line: z.number().int(),
+      lines: z.number().int(),
+      complexity: z.enum(["low", "medium", "high"]),
+      features: z.array(z.string()),
+    }),
+  ),
+  tables: z.array(
+    z.object({
+      schema: z.string(),
+      name: z.string(),
+      columns: z.number().int(),
+      primaryKey: z.boolean(),
+      partitioned: z.boolean(),
+      movement: z.enum(["dms", "copy", "datasync", "s3", "manual"]),
+      status: conversionStatusSchema,
+      location: z.string().optional(),
+    }),
+  ),
+  movement: z.object({
+    method: z.enum(["dms-serverless", "s3-copy", "datasync-athena"]),
+    summary: z.string(),
+    tables: z.number().int(),
+    manualTables: z.number().int(),
+  }),
+  risks: z.array(riskSchema),
+  questions: z.array(z.string()),
+  readiness: databaseReadinessSchema,
+  truncated: z.object({
+    tables: z.boolean(),
+    procedural: z.boolean(),
+    attention: z.boolean(),
+  }),
+});
+
+export const databaseBundleSummarySchema: z.ZodType<DatabaseBundleSummary> = z.object({
+  workload: z.literal("database"),
+  bundle_id: z.string(),
+  project_name: z.string(),
+  download_url: z.string().optional(),
+  download_expires_at: z.string().optional(),
+  generated_with: z.string(),
+  source_engine: sourceEngineSchema,
+  target_engine: targetEngineSchema,
+  workload_class: workloadClassSchema,
+  readiness: databaseReadinessSchema,
+  totals: databaseTotalsSchema,
+  files: z.array(bundleFileSchema),
+  artifacts: z.array(
+    z.object({
+      kind: z.enum([
+        "target-ddl",
+        "dms",
+        "export",
+        "load",
+        "runner",
+        "state-machine",
+        "cloudformation",
+      ]),
+      path: z.string(),
+      description: z.string(),
+    }),
+  ),
+  secrets: z.array(z.object({ name: z.string(), purpose: z.string() })),
+  state_machines: z.array(
+    z.object({ name: z.string(), definition_path: z.string(), purpose: z.string() }),
+  ),
+  warnings: z.array(z.string()),
+  next_steps: z.array(z.string()),
+  assessment: databaseAssessmentSchema,
 });

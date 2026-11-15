@@ -1,3 +1,6 @@
+import type { ConversionStatus } from "../convert/step-mapping.js";
+import type { ProjectAssessment, Risk } from "../migration/types.js";
+
 export type SourceEngine =
   | "oracle"
   | "sqlserver"
@@ -162,6 +165,88 @@ export interface DatabaseFile {
   detectedEngine?: SourceEngine;
 }
 
+export type ObjectKind = "table" | "view" | "index" | "sequence" | ProceduralKind;
+export type TableMovement = "dms" | "copy" | "datasync" | "s3" | "manual";
+
+export interface DatabaseAssessment {
+  workload: "database";
+  projectName: string;
+  sourceEngine: SourceEngine;
+  engineDetection: "argument" | "detected";
+  targetEngine: TargetEngine;
+  workloadClass: WorkloadClass;
+  totals: {
+    files: number;
+    schemas: number;
+    tables: number;
+    columns: number;
+    views: number;
+    indexes: number;
+    sequences: number;
+    procedural: number;
+    temporaryTables: number;
+    unparsed: number;
+    warnings: number;
+    automaticColumns: number;
+    partialColumns: number;
+    manualColumns: number;
+  };
+  files: { path: string; bytes: number; sha256: string; statements: number }[];
+  typeCoverage: {
+    sourceType: string;
+    targetType: string;
+    count: number;
+    status: ConversionStatus;
+    caveat?: string;
+  }[];
+  objectCoverage: {
+    kind: ObjectKind;
+    count: number;
+    automatic: number;
+    partial: number;
+    manual: number;
+    conversion: string;
+  }[];
+  attention: {
+    kind: ObjectKind | "column";
+    name: string;
+    file: string;
+    line: number;
+    status: "partial" | "manual";
+    reason: string;
+  }[];
+  procedural: {
+    schema: string;
+    name: string;
+    kind: ProceduralKind;
+    file: string;
+    line: number;
+    lines: number;
+    complexity: "low" | "medium" | "high";
+    features: string[];
+  }[];
+  tables: {
+    schema: string;
+    name: string;
+    columns: number;
+    primaryKey: boolean;
+    partitioned: boolean;
+    movement: TableMovement;
+    status: ConversionStatus;
+    location?: string;
+  }[];
+  movement: {
+    method: "dms-serverless" | "s3-copy" | "datasync-athena";
+    summary: string;
+    tables: number;
+    manualTables: number;
+  };
+  risks: Risk[];
+  questions: string[];
+  readiness: ProjectAssessment["readiness"];
+  truncated: { tables: boolean; procedural: boolean; attention: boolean };
+}
+
 export interface DatabaseProject {
   engine: SourceEngine;
   engineDetection: "argument" | "detected";
@@ -172,6 +257,8 @@ export interface DatabaseProject {
   indexes: IndexDef[];
   sequences: SequenceDef[];
   procedural: ProceduralObject[];
+  /** ALTER TABLE … ADD CONSTRAINT statements, in source order. */
+  constraintStatements: SqlStatement[];
   temporaryTables: string[];
   schemaFallbackUsed: boolean;
   extensions: string[];

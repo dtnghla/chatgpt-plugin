@@ -10,6 +10,18 @@ import {
   type ToolAnnotations,
 } from "@modelcontextprotocol/server";
 import type { ArtifactService } from "./artifacts/store.js";
+import {
+  assessDatabaseProject,
+  deriveDatabaseProjectName,
+  truncateDatabaseAssessment,
+} from "./database/assessment.js";
+import {
+  buildDatabaseBundle,
+  type DatabaseBundle,
+  summarizeDatabaseBundle,
+} from "./database/bundle.js";
+import { parseDatabaseProject } from "./database/parse.js";
+import type { DatabaseProject } from "./database/types.js";
 import { IngestError, readProjectInput } from "./ingest/index.js";
 import {
   type LicensingContext,
@@ -24,11 +36,21 @@ import { buildMigrationBundle, summarizeBundle } from "./migration/bundle.js";
 import type { MigrationFileResult } from "./migration/types.js";
 import { parsePentahoProject } from "./pentaho/parse.js";
 import type { PentahoProject } from "./pentaho/types.js";
-import { formatAssessment, formatBundleSummary, formatMigrationFile } from "./tools/format.js";
+import {
+  formatAssessment,
+  formatBundleSummary,
+  formatDatabaseAssessment,
+  formatDatabaseBundleSummary,
+  formatMigrationFile,
+} from "./tools/format.js";
 import {
   analyzeInputSchema,
   assessmentOutputSchema,
   bundleSummarySchema,
+  databaseAnalyzeInputSchema,
+  databaseAssessmentSchema,
+  databaseBundleSummarySchema,
+  databaseGenerateInputSchema,
   generateInputSchema,
   getFileInputSchema,
   migrationFileSchema,
@@ -42,16 +64,16 @@ export const GENERATOR_VERSION = "aws-data-modernizer 1.0.0";
 const MAX_FILE_CHARS = 120_000;
 
 const INSTRUCTIONS = [
-  "This server analyzes Pentaho Data Integration files and generates an AWS migration bundle. Every tool is read-only: it never calls AWS, never asks for AWS credentials, and never stores or prints database passwords.",
-  "Start with analyze_pentaho_project when the user uploads .ktr/.kjb files, a repository export or a project ZIP. Summarize the readiness score, manual steps, placeholder connections and open questions honestly; do not claim the project will run unchanged.",
-  "Call generate_pentaho_migration only after the analysis. It produces Glue scripts, Step Functions definitions, EventBridge schedules and one CloudFormation template. The user deploys the bundle with the AWS CLI; this server cannot deploy it.",
-  "Never ask for a password, access key, secret key or session token. If a connection needs credentials, tell the user to replace the generated Secrets Manager placeholders themselves after deployment.",
+  "This server assesses data platform modernization projects and generates AWS migration bundles: Pentaho Data Integration ETL projects, relational databases (Oracle, SQL Server, MySQL/MariaDB, PostgreSQL), data warehouses (Teradata, Netezza) and Hive data lakes. Every tool is read-only: it never calls AWS, never asks for AWS credentials, and never connects to, stores or prints database passwords.",
+  "For Pentaho .ktr/.kjb files, repository exports or project ZIPs, start with analyze_pentaho_project and call generate_pentaho_migration only after the analysis. For database, warehouse or Hive DDL exports (.sql, .ddl, .hql or BTEQ scripts), start with analyze_database_schema and call generate_database_migration only after the analysis.",
+  "Summarize readiness, manual work, placeholder connections and open questions honestly; do not claim the migration will run unchanged. The user deploys the bundle with the AWS CLI; this server cannot deploy it.",
+  "Never ask for a password, access key, secret key or session token. If a connection needs credentials, tell the user to fill the generated Secrets Manager placeholders themselves after deployment.",
   "Download URLs supplied by the host are fetched only over HTTPS from an allowlisted host. Do not invent file contents; if a file cannot be read, report the error.",
-  "Use get_migration_file to quote or inspect generated text files. The returned bundle expires; regenerate it if the download or file lookup has expired.",
+  "Use get_migration_file to quote or inspect generated text files from either bundle type. Bundles expire; regenerate them if the download or file lookup has expired.",
 ].join(" ");
 
 const LICENSE_INSTRUCTIONS =
-  "This deployment enforces free-tier limits. If a tool result says the free tier limit was exceeded or a license key is invalid, relay that message to the user. A purchased Pro license key can be passed through the license_key argument of analyze_pentaho_project and generate_pentaho_migration.";
+  "This deployment enforces free-tier limits. If a tool result says the free tier limit was exceeded or a license key is invalid, relay that message to the user. A purchased Pro license key can be passed through the license_key argument of the analyze and generate tools.";
 
 const READ_ONLY: ToolAnnotations = {
   readOnlyHint: true,
@@ -88,6 +110,13 @@ function projectUsage(project: PentahoProject): { files: number; units: number }
         (sum, transformation) => sum + transformation.steps.length,
         0,
       ) + project.jobs.reduce((sum, job) => sum + job.entries.length, 0),
+  };
+}
+
+function databaseUsage(project: DatabaseProject): { files: number; units: number } {
+  return {
+    files: project.files.length,
+    units: project.tables.length + project.views.length + project.procedural.length,
   };
 }
 
@@ -151,6 +180,56 @@ export function createServer(deps: ServerDeps): McpServer {
         const assessment = assessProject(project, { projectName: args.project_name });
         return {
           content: [{ type: "text", text: formatAssessment(assessment) }],
+          structuredContent: assessment,
+        };
+      } catch (error) {
+        return toolError(error);
+      }
+    },
+  );
+
+  registerAppTool(
+    server,
+    "analyze_database_schema",
+    {
+      title: "Analyze database schema",
+      description:
+        "Use this when the user uploads database, data warehouse or data lake DDL exports: Oracle, SQL Server, MySQL/MariaDB or PostgreSQL schema scripts, Teradata DDL or BTEQ scripts, Netezza DDL, or Hive/Impala DDL (.sql, .ddl, .hql, .btq, .bteq, .pks, .pkb, .pls or a ZIP). It detects the source engine, inventories tables, views, indexes, sequences, procedural code and Hive table locations, maps every column type to the AWS target (Aurora PostgreSQL, Aurora MySQL, Redshift Serverless, or Athena with Apache Iceberg), scores modernization readiness and lists open questions. It never connects to a database or AWS.",
+      inputSchema: databaseAnalyzeInputSchema,
+      outputSchema: databaseAssessmentSchema,
+      annotations: READ_ONLY,
+      _meta: {
+        ui: { resourceUri: WORKBENCH_UI_URI },
+        "openai/fileParams": ["files"],
+        "openai/toolInvocation/invoking": "Analyzing database schema",
+        "openai/toolInvocation/invoked": "Analysis ready",
+      },
+    },
+    async (args): Promise<CallToolResult> => {
+      try {
+        const entitlement = resolveEntitlement(
+          deps.licensing,
+          args.license_key,
+          deps.headerLicense,
+        );
+        if (entitlement.error) return failure(entitlement.error);
+        const input = await readProjectInput(args.files ?? [], args.inline_files ?? [], {
+          allowlist: deps.fileHostAllowlist,
+        });
+        const project = parseDatabaseProject(input.files, {
+          engine: args.source_engine,
+          defaultSchema: args.default_schema,
+        });
+        const gate = freeTierGate(deps, entitlement, {
+          ...databaseUsage(project),
+          unitLabel: "schema objects",
+        });
+        if (gate) return gate;
+        const assessment = truncateDatabaseAssessment(
+          assessDatabaseProject(project, { projectName: args.project_name }),
+        );
+        return {
+          content: [{ type: "text", text: formatDatabaseAssessment(assessment) }],
           structuredContent: assessment,
         };
       } catch (error) {
@@ -235,12 +314,86 @@ export function createServer(deps: ServerDeps): McpServer {
     },
   );
 
+  registerAppTool(
+    server,
+    "generate_database_migration",
+    {
+      title: "Generate database migration bundle",
+      description:
+        "Use this after analyze_database_schema when the user wants deployable AWS artifacts. It writes target DDL for Aurora PostgreSQL, Aurora MySQL, Redshift Serverless or Athena with Apache Iceberg, data movement artifacts (AWS DMS Serverless table mappings, Teradata or Netezza export scripts with Redshift COPY, or DataSync with Athena load SQL), Step Functions orchestration where needed, a migration report and one CloudFormation template, packaged as a deterministic ZIP. The user deploys the bundle with the AWS CLI; this tool never connects to a database or deploys anything.",
+      inputSchema: databaseGenerateInputSchema,
+      outputSchema: databaseBundleSummarySchema,
+      annotations: READ_ONLY,
+      _meta: {
+        ui: { resourceUri: WORKBENCH_UI_URI },
+        "openai/fileParams": ["files"],
+        "openai/toolInvocation/invoking": "Generating database migration bundle",
+        "openai/toolInvocation/invoked": "Bundle ready",
+      },
+    },
+    async (args): Promise<CallToolResult> => {
+      try {
+        const entitlement = resolveEntitlement(
+          deps.licensing,
+          args.license_key,
+          deps.headerLicense,
+        );
+        if (entitlement.error) return failure(entitlement.error);
+        const input = await readProjectInput(args.files ?? [], args.inline_files ?? [], {
+          allowlist: deps.fileHostAllowlist,
+        });
+        const project = parseDatabaseProject(input.files, {
+          engine: args.source_engine,
+          defaultSchema: args.default_schema,
+        });
+        const gate = freeTierGate(deps, entitlement, {
+          ...databaseUsage(project),
+          unitLabel: "schema objects",
+        });
+        if (gate) return gate;
+        if (entitlement.tier === "free" && deps.licensing) {
+          const used = deps.licensing.quota.used();
+          if (used >= deps.licensing.settings.free.dailyBundles) {
+            return failure(quotaMessage(deps.licensing.settings, used));
+          }
+        }
+        const projectName = args.project_name ?? deriveDatabaseProjectName(project);
+        const bundle: DatabaseBundle = buildDatabaseBundle(project, {
+          projectName,
+          replicationType: args.replication_type,
+          dmsMaxCapacityUnits: args.dms_max_capacity_units,
+          generatedWith: GENERATOR_VERSION,
+        });
+        let download: { url: string; expiresAt: string } | undefined;
+        try {
+          const saved = await deps.artifacts.save(bundle);
+          if (saved.url) {
+            download = { url: saved.url, expiresAt: new Date(saved.expiresAt).toISOString() };
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : String(error);
+          return failure(
+            `The bundle was generated but could not be stored for download or file lookup: ${message}. Configure ARTIFACT_STORE and its credentials, or use analyze_database_schema only.`,
+          );
+        }
+        const summary = summarizeDatabaseBundle(bundle, download);
+        if (entitlement.tier === "free" && deps.licensing) deps.licensing.quota.record();
+        return {
+          content: [{ type: "text", text: formatDatabaseBundleSummary(summary) }],
+          structuredContent: summary,
+        };
+      } catch (error) {
+        return toolError(error);
+      }
+    },
+  );
+
   server.registerTool(
     "get_migration_file",
     {
       title: "Read generated migration file",
       description:
-        "Use this to read a text file from a generated migration bundle, for example migration-report.md, README.md, a Glue PySpark script, a Step Functions JSON definition or the CloudFormation template. Pass the bundle_id from generate_pentaho_migration and an exact path from its file list. Large files are truncated, and the bundle expires.",
+        "Use this to read a text file from a generated migration bundle, for example migration-report.md, README.md, a Glue PySpark script, a Step Functions JSON definition, SQL scripts and DMS mappings, or the CloudFormation template. Pass the bundle_id from generate_pentaho_migration or generate_database_migration and an exact path from its file list. Large files are truncated, and the bundle expires.",
       inputSchema: getFileInputSchema,
       outputSchema: migrationFileSchema,
       annotations: READ_ONLY,

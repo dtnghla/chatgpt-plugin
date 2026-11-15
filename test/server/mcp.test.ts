@@ -57,7 +57,9 @@ describe.each<Era>(["legacy", "modern"])("%s protocol era", (era) => {
   it("lists exactly the read-only migration tools with widget metadata", async () => {
     const { tools } = await client.listTools();
     expect(tools.map((tool) => tool.name).sort()).toEqual([
+      "analyze_database_schema",
       "analyze_pentaho_project",
+      "generate_database_migration",
       "generate_pentaho_migration",
       "get_migration_file",
     ]);
@@ -73,8 +75,10 @@ describe.each<Era>(["legacy", "modern"])("%s protocol era", (era) => {
     }
     const analyze = tools.find((tool) => tool.name === "analyze_pentaho_project");
     const generate = tools.find((tool) => tool.name === "generate_pentaho_migration");
+    const dbAnalyze = tools.find((tool) => tool.name === "analyze_database_schema");
+    const dbGenerate = tools.find((tool) => tool.name === "generate_database_migration");
     const read = tools.find((tool) => tool.name === "get_migration_file");
-    for (const tool of [analyze, generate]) {
+    for (const tool of [analyze, generate, dbAnalyze, dbGenerate]) {
       expect(tool).toBeDefined();
       const meta = metaOf(tool ?? {});
       expect(meta.ui).toEqual({ resourceUri: WORKBENCH_UI_URI });
@@ -84,6 +88,8 @@ describe.each<Era>(["legacy", "modern"])("%s protocol era", (era) => {
     expect(metaOf(read ?? {}).ui).toBeUndefined();
     expect(analyze?.inputSchema).toMatchObject({ type: "object" });
     expect(generate?.inputSchema).toMatchObject({ type: "object" });
+    expect(dbAnalyze?.inputSchema).toMatchObject({ type: "object" });
+    expect(dbGenerate?.inputSchema).toMatchObject({ type: "object" });
     expect(read?.inputSchema).toMatchObject({ type: "object" });
   });
 

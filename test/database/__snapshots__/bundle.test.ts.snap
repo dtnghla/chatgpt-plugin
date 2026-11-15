@@ -1,0 +1,51 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`database bundle layout > packages hive-lake with the documented file list 1`] = `
+[
+  "README.md",
+  "cloudformation/data-modernization.yaml",
+  "glue/scripts/hive-lake-sql-apply.py",
+  "manifest.json",
+  "migration-report.md",
+  "sql/apply-plan.json",
+  "sql/load/load.sql",
+  "sql/target/01-databases.sql",
+  "sql/target/02-raw-tables.sql",
+  "sql/target/03-iceberg-tables.sql",
+  "sql/target/04-views-sales.sql",
+  "stepfunctions/hive-lake-lake-load.json",
+]
+`;
+
+exports[`database bundle layout > packages oracle-hr with the documented file list 1`] = `
+[
+  "README.md",
+  "cloudformation/data-modernization.yaml",
+  "dms/replication-settings.json",
+  "dms/table-mappings.json",
+  "manifest.json",
+  "migration-report.md",
+  "sql/target/01-schemas.sql",
+  "sql/target/02-tables.sql",
+  "sql/target/03-views.sql",
+  "sql/target/04-constraints-indexes.sql",
+]
+`;
+
+exports[`database bundle layout > packages teradata-sales with the documented file list 1`] = `
+[
+  "README.md",
+  "cloudformation/data-modernization.yaml",
+  "export/export-teradata.sh",
+  "export/teradata-export.tpt",
+  "glue/scripts/teradata-sales-sql-apply.py",
+  "manifest.json",
+  "migration-report.md",
+  "sql/apply-plan.json",
+  "sql/load/copy.sql",
+  "sql/target/01-schemas.sql",
+  "sql/target/02-tables.sql",
+  "sql/target/03-views.sql",
+  "stepfunctions/teradata-sales-warehouse-load.json",
+]
+`;
