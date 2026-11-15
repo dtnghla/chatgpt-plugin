@@ -5,6 +5,8 @@ import { SERVER_NAME, SERVER_VERSION, WORKBENCH_UI_URI } from "../../src/server.
 import {
   assessmentOutputSchema,
   bundleSummarySchema,
+  databaseAssessmentSchema,
+  databaseBundleSummarySchema,
   migrationFileSchema,
 } from "../../src/tools/schemas.js";
 import { fixtureZipBase64, inlineFixtureFiles } from "../helpers.js";
@@ -171,6 +173,31 @@ describe.each<Era>(["legacy", "modern"])("%s protocol era", (era) => {
     expect(textOf(result)).toContain("No Pentaho transformations or jobs were found");
   });
 
+  it("analyzes inline database DDL files", async () => {
+    const result = await client.callTool({
+      name: "analyze_database_schema",
+      arguments: { inline_files: inlineFixtureFiles("oracle-hr") },
+    });
+    expect(result.isError).toBeFalsy();
+    const assessment = databaseAssessmentSchema.parse(result.structuredContent);
+    expect(assessment.workload).toBe("database");
+    expect(assessment.projectName).toBe("hr");
+    expect(assessment.totals.tables).toBe(4);
+    const text = textOf(result);
+    expect(text).toContain('Oracle schema "hr" to Aurora PostgreSQL: readiness 77/100 (review).');
+    expect(text).toContain("Call generate_database_migration");
+    expect(text).not.toContain("S3cretPw!");
+  });
+
+  it("returns a tool error when no database objects are found", async () => {
+    const result = await client.callTool({
+      name: "analyze_database_schema",
+      arguments: { inline_files: [{ name: "notes.md", content: "# x" }] },
+    });
+    expect(result.isError).toBe(true);
+    expect(textOf(result)).toContain("No tables, views or procedural objects were found");
+  });
+
   it("generates a bundle, exposes a signed download and reads files", async () => {
     const result = await client.callTool({
       name: "generate_pentaho_migration",
@@ -233,6 +260,31 @@ describe.each<Era>(["legacy", "modern"])("%s protocol era", (era) => {
     expect(readmeFile.content).toContain("retail-mcp");
     expect(readmeFile.sha256).toMatch(/^[a-f0-9]{64}$/);
     expect(textOf(readme)).toContain(`README.md (markdown`);
+  });
+
+  it("generates a database bundle and reads a generated SQL file", async () => {
+    const result = await client.callTool({
+      name: "generate_database_migration",
+      arguments: { inline_files: inlineFixtureFiles("teradata-sales") },
+    });
+    expect(result.isError).toBeFalsy();
+    const summary = databaseBundleSummarySchema.parse(result.structuredContent);
+    expect(summary.workload).toBe("database");
+    expect(summary.bundle_id).toMatch(/^[a-f0-9]{16}$/);
+    expect(summary.files).toHaveLength(13);
+    expect(summary.state_machines).toHaveLength(1);
+    expect(summary.secrets).toEqual([]);
+    expect(textOf(result)).toContain(`Generated bundle ${summary.bundle_id}`);
+
+    const copy = await client.callTool({
+      name: "get_migration_file",
+      arguments: { bundle_id: summary.bundle_id, path: "sql/load/copy.sql" },
+    });
+    expect(copy.isError).toBeFalsy();
+    const file = migrationFileSchema.parse(copy.structuredContent);
+    expect(file.kind).toBe("sql");
+    expect(file.content).toContain("COPY sales.orders FROM");
+    expect(textOf(copy)).toContain("sql/load/copy.sql (sql");
   });
 
   it("normalizes path separators when reading a file", async () => {

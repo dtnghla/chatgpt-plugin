@@ -121,8 +121,9 @@ export function generateCloudFormation(options: CloudFormationOptions): string {
     };
   }
 
+  // AWS::SecretsManager::Secret exposes Fn::GetAtt Id only; Id returns the secret ARN.
   const secretArns = [...secretLogical.values()].map((logical) => ({
-    "Fn::GetAtt": [logical, "Arn"],
+    "Fn::GetAtt": [logical, "Id"],
   }));
 
   resources.GlueRole = {
@@ -217,7 +218,7 @@ export function generateCloudFormation(options: CloudFormationOptions): string {
       const secret = secretLogical.get(name);
       if (!summary || !secret) continue;
       const slug = connectionSlug(name);
-      args[`--CONNECTION_${slug}_SECRET_ARN`] = { "Fn::GetAtt": [secret, "Arn"] };
+      args[`--CONNECTION_${slug}_SECRET_ARN`] = { "Fn::GetAtt": [secret, "Id"] };
       args[`--CONNECTION_${slug}_URL`] = summary.jdbcUrl;
       args[`--CONNECTION_${slug}_DRIVER`] = driverClass(summary.type);
     }

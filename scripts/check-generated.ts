@@ -3,14 +3,19 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
+import type { ArtifactBundle } from "../src/artifacts/store.js";
+import { buildDatabaseBundle } from "../src/database/bundle.js";
+import { parseDatabaseProject } from "../src/database/parse.js";
 import type { InputFile } from "../src/ingest/types.js";
 import { buildMigrationBundle } from "../src/migration/bundle.js";
 import { parsePentahoProject } from "../src/pentaho/parse.js";
 import { GENERATOR_VERSION } from "../src/server.js";
 
 const REPO_ROOT = path.resolve(import.meta.dirname, "..");
-const FIXTURE_ROOT = path.join(REPO_ROOT, "test", "fixtures", "retail");
 const STRICT = process.env.REQUIRE_GENERATED_CHECKS === "1";
+
+const DATABASE_FIXTURES = ["oracle-hr", "teradata-sales", "hive-lake"] as const;
+type DatabaseFixtureName = (typeof DATABASE_FIXTURES)[number];
 
 function collectFiles(root: string): InputFile[] {
   const files: InputFile[] = [];
@@ -30,6 +35,33 @@ function collectFiles(root: string): InputFile[] {
   };
   visit(root);
   return files.sort((a, b) => a.path.localeCompare(b.path));
+}
+
+function fixtureFiles(name: string): InputFile[] {
+  return collectFiles(path.join(REPO_ROOT, "test", "fixtures", name));
+}
+
+function retailBundle(): ArtifactBundle {
+  return buildMigrationBundle(parsePentahoProject(fixtureFiles("retail")), {
+    projectName: "retail",
+    glueVersion: "6.0",
+    workerType: "G.1X",
+    numberOfWorkers: 2,
+    scriptPrefix: "glue/scripts",
+    pathMappings: [],
+    stepOverrides: {},
+    scheduleOverrides: {},
+    generatedWith: GENERATOR_VERSION,
+  });
+}
+
+function databaseBundle(name: DatabaseFixtureName): ArtifactBundle {
+  return buildDatabaseBundle(parseDatabaseProject(fixtureFiles(name)), {
+    projectName: name,
+    replicationType: "full-load-and-cdc",
+    dmsMaxCapacityUnits: 16,
+    generatedWith: GENERATOR_VERSION,
+  });
 }
 
 function findCommand(candidates: string[], args: string[]): string | undefined {
@@ -105,26 +137,18 @@ function checkCloudFormation(filePath: string): string[] {
   return problems;
 }
 
-function main(): number {
-  const files = collectFiles(FIXTURE_ROOT);
-  const project = parsePentahoProject(files);
-  const bundle = buildMigrationBundle(project, {
-    projectName: "retail",
-    glueVersion: "6.0",
-    workerType: "G.1X",
-    numberOfWorkers: 2,
-    scriptPrefix: "glue/scripts",
-    pathMappings: [],
-    stepOverrides: {},
-    scheduleOverrides: {},
-    generatedWith: GENERATOR_VERSION,
-  });
-  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "pentaho-generated-"));
+function checkBundle(
+  name: string,
+  bundle: ArtifactBundle,
+  python: string | undefined,
+  cfnLint: string | undefined,
+  skipped: string[],
+): string[] {
   const problems: string[] = [];
-  const skipped: string[] = [];
+  const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), `generated-${name}-`));
   try {
-    for (const [name, content] of Object.entries(bundle.contents)) {
-      const target = path.join(tempDir, ...name.split("/"));
+    for (const [fileName, content] of Object.entries(bundle.contents)) {
+      const target = path.join(tempDir, ...fileName.split("/"));
       fs.mkdirSync(path.dirname(target), { recursive: true });
       fs.writeFileSync(target, content);
     }
@@ -132,11 +156,9 @@ function main(): number {
     const pythonFiles = bundle.files
       .filter((file) => file.kind === "python")
       .map((file) => path.join(tempDir, ...file.path.split("/")));
-    const python = findCommand(
-      process.platform === "win32" ? ["python", "python3", "py"] : ["python3", "python"],
-      ["--version"],
-    );
-    if (python && pythonFiles.length > 0) {
+    if (pythonFiles.length === 0) {
+      // No Python artifacts in this bundle (for example the database class has no Glue runner).
+    } else if (python) {
       const compile = spawnSync(python, ["-m", "py_compile", ...pythonFiles], {
         encoding: "utf8",
         timeout: 120_000,
@@ -144,38 +166,68 @@ function main(): number {
       });
       if (compile.status !== 0) {
         problems.push(
-          `py_compile failed for the generated Glue scripts:\n${compile.stderr || compile.stdout || "unknown error"}`,
+          `${name}: py_compile failed for the generated Python files:\n${
+            compile.stderr || compile.stdout || "unknown error"
+          }`,
         );
       } else {
-        console.log(`py_compile: ${pythonFiles.length} generated Python file(s) compiled.`);
+        console.log(`${name}: py_compile compiled ${pythonFiles.length} Python file(s).`);
       }
     } else {
-      skipped.push("py_compile (Python interpreter not found)");
+      skipped.push(`${name}: py_compile (Python interpreter not found)`);
     }
 
-    const template = bundle.files.find((file) => file.kind === "cloudformation");
-    if (!template) {
-      problems.push("The bundle did not contain a CloudFormation template.");
-    } else {
+    for (const template of bundle.files.filter((file) => file.kind === "cloudformation")) {
       const templatePath = path.join(tempDir, ...template.path.split("/"));
-      problems.push(...checkCloudFormation(templatePath));
-      const cfnLint = findCommand(
-        process.platform === "win32" ? ["cfn-lint.cmd", "cfn-lint"] : ["cfn-lint"],
-        ["--version"],
-      );
+      problems.push(...checkCloudFormation(templatePath).map((problem) => `${name}: ${problem}`));
       if (cfnLint) {
         const lint = spawnSync(cfnLint, [templatePath], {
           encoding: "utf8",
           timeout: 120_000,
           windowsHide: true,
         });
-        if (lint.status !== 0) {
-          problems.push(`cfn-lint failed:\n${lint.stdout || lint.stderr || "unknown error"}`);
+        // cfn-lint exit codes: 0 clean, 2 errors, 4 warnings, 6 both. Warnings
+        // alone do not fail the check; the plan requires no errors.
+        if (lint.status === null) {
+          problems.push(
+            `${name}: cfn-lint could not run on ${template.path}: ${
+              lint.error?.message ?? "unknown error"
+            }`,
+          );
+        } else if ((lint.status & ~4) !== 0) {
+          problems.push(
+            `${name}: cfn-lint failed on ${template.path}:\n${
+              lint.stdout || lint.stderr || "unknown error"
+            }`,
+          );
+        } else if (lint.status === 4) {
+          console.warn(
+            `${name}: cfn-lint reported warnings (no errors) on ${template.path}:\n${
+              lint.stdout || lint.stderr || ""
+            }`,
+          );
         } else {
-          console.log("cfn-lint: CloudFormation template passed.");
+          console.log(`${name}: cfn-lint passed ${template.path}.`);
         }
       } else {
-        skipped.push("cfn-lint (command not found)");
+        skipped.push(`${name}: cfn-lint (command not found)`);
+      }
+    }
+
+    for (const jsonFile of bundle.files.filter((file) => file.path.endsWith(".json"))) {
+      const content = bundle.contents[jsonFile.path];
+      if (content === undefined) {
+        problems.push(`${name}: ${jsonFile.path} has no packaged content.`);
+        continue;
+      }
+      try {
+        JSON.parse(content);
+      } catch (error) {
+        problems.push(
+          `${name}: ${jsonFile.path} is not valid JSON: ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
       }
     }
 
@@ -184,28 +236,51 @@ function main(): number {
       try {
         const parsed = JSON.parse(manifest) as { files?: unknown[] };
         if (!Array.isArray(parsed.files) || parsed.files.length !== bundle.files.length - 1) {
-          problems.push("manifest.json does not list every generated file.");
+          problems.push(`${name}: manifest.json does not list every generated file.`);
         }
       } catch {
-        problems.push("manifest.json is not valid JSON.");
+        problems.push(`${name}: manifest.json is not valid JSON.`);
       }
     } else {
-      problems.push("The bundle did not contain manifest.json.");
+      problems.push(`${name}: the bundle did not contain manifest.json.`);
     }
   } finally {
     fs.rmSync(tempDir, { recursive: true, force: true });
   }
+  return problems;
+}
+
+function main(): number {
+  const targets: { name: string; bundle: ArtifactBundle }[] = [
+    { name: "retail", bundle: retailBundle() },
+    ...DATABASE_FIXTURES.map((name) => ({ name, bundle: databaseBundle(name) })),
+  ];
+  const python = findCommand(
+    process.platform === "win32" ? ["python", "python3", "py"] : ["python3", "python"],
+    ["--version"],
+  );
+  const cfnLint = findCommand(
+    process.platform === "win32" ? ["cfn-lint.cmd", "cfn-lint"] : ["cfn-lint"],
+    ["--version"],
+  );
+  const skipped: string[] = [];
+  let failed = false;
+  for (const { name, bundle } of targets) {
+    const problems = checkBundle(name, bundle, python, cfnLint, skipped);
+    if (problems.length > 0) {
+      for (const problem of problems) console.error(`ERROR ${problem}`);
+      failed = true;
+      continue;
+    }
+    console.log(`Generated bundle ${name} (${bundle.id}) passed the available checks.`);
+  }
 
   for (const skip of skipped) console.warn(`SKIP ${skip}`);
-  if (problems.length > 0) {
-    for (const problem of problems) console.error(`ERROR ${problem}`);
-    return 1;
-  }
+  if (failed) return 1;
   if (skipped.length > 0 && STRICT) {
     console.error("REQUIRE_GENERATED_CHECKS=1 but required generated-file tools are missing.");
     return 1;
   }
-  console.log(`Generated bundle ${bundle.id} passed the available checks.`);
   return 0;
 }
 

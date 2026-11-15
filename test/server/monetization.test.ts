@@ -73,6 +73,25 @@ describe("enforced licensing", () => {
     expect(instructions).toContain("license_key");
   });
 
+  it("gates database analysis by schema objects on the free tier", async () => {
+    const tables = Array.from(
+      { length: 11 },
+      (_, index) => `CREATE TABLE t${index + 1} (id INTEGER);`,
+    ).join("\n");
+    const result = await client.callTool({
+      name: "analyze_database_schema",
+      arguments: {
+        inline_files: [{ name: "tables.sql", content: tables }],
+        source_engine: "postgresql",
+      },
+    });
+    expect(result.isError).toBe(true);
+    const text = textOf(result);
+    expect(text).toContain("11 schema objects (free tier limit: 10)");
+    expect(text).toContain("license_key");
+    expect(text).toContain("https://buy.example.com/pro");
+  });
+
   it("unlocks the tools for a valid license key argument", async () => {
     const result = await client.callTool({
       name: "analyze_pentaho_project",
